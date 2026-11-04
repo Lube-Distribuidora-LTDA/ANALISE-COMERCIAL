@@ -1,0 +1,12 @@
+# senhas e dados da empresa nunca entram no repositório
+ENV
+*.env
+.env*
+node_modules/
+__pycache__/
+*.pyc
+# a planilha do gestor e os números de conferência (venda por supervisor) ficam só na máquina
+conferencia/*.xlsx
+conferencia/referencias-*.json
+conferencia/*.log
+*.log
