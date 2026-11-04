@@ -8,6 +8,17 @@ Pedido do Júlio em 2026-11-04. Decisões dele no mesmo dia: **mês comercial** 
 Televendas** (como a planilha; no WinThor é de Grandes Contas), **meta do WinThor** e **todas as equipes
 abrindo no ES**.
 
+## No ar
+
+- **https://analise-comercial.vercel.app** — projeto Vercel `analise-comercial` (Root `web`, Other, `gru1`, Node 22),
+  deploy a cada push na `main`. Publicado em 2026-11-04 (Júlio: "Pode publicar" e "Autorizo").
+- **Fechado pela Sentinela:** só entra quem tem acesso pelo Painel Lube (`exige_login`); regra "só na rede da Lube" em
+  observar, como os outros internos. Provado de fora (sem login: página e APIs bloqueadas; guarda 1.3.0 em proteger).
+- **Cartão no portal** em COMERCIAL, **inativo** até o Júlio decidir quem vê. Site na vigia do Guardião.
+- **Variáveis na Vercel** (só os nomes): `SUPABASE_DB_HOST`, `SUPABASE_DB_PORT` (5432), `SUPABASE_DB_NAME`,
+  `SUPABASE_DB_USER` e `SUPABASE_DB_PASSWORD` (Sensitive, cadastrada pelo Júlio; sem ela a API responde
+  `configuracao_incompleta`).
+
 ## O caminho do dado
 
 ```
