@@ -49,6 +49,7 @@ const rotas = {
   "/api/pacote": require(path.join(WEB, "api", "pacote.js")),
   "/api/consulta": require(path.join(WEB, "api", "consulta.js")),
   "/api/atualizar": require(path.join(WEB, "api", "atualizar.js")),
+  "/api/img": require(path.join(WEB, "api", "img.js")),
 };
 const TIPOS = {
   ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",

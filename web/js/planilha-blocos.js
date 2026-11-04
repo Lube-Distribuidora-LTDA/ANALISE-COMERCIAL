@@ -2,7 +2,8 @@
  * planilha-blocos.js — o Excel da tela, no formato da planilha do gestor (ACOMP INDICADORES ANO):
  * um bloco por equipe/supervisor/RCA/fornecedor, com as MESMAS cores da planilha dele —
  * nome do bloco em verde, INDICADORES/ANO/Média em roxo, meses em azul, rótulos lilás, valores
- * azul-claro, META laranja, melhor mês em amarelo e queda em vermelho — e, em cima, a faixa da Lube
+ * azul-claro, melhor mês em amarelo e as comparações em verde (cresceu) e vermelho (caiu), como a
+ * formatação condicional do Excel — e, em cima, a faixa da Lube
  * com os filtros escritos por extenso. Usa o zip do planilha.js (sem biblioteca).
  * ========================================================================== */
 (function () {
@@ -11,7 +12,8 @@ var L = window.L;
 
 /* cores medidas na planilha do gestor (tema do Office com os tons que ele usa) */
 var COR = {
-  bloco: "FF92D050", roxo: "FF7030A0", mes: "FF7992B1", rot: "FFCCC1DA", val: "FFDCE6F2", meta: "FFFCD5B5",
+  bloco: "FF92D050", roxo: "FF7030A0", mes: "FF7992B1", rot: "FFCCC1DA", val: "FFDCE6F2",
+  sobe: "FFC6EFCE", sobeT: "FF006100", cai: "FFFFC7CE", caiT: "FF9C0006",
   melhor: "FFFFFF00", borda: "FF8EA9C8", marinho: "FF0D1830", ouro: "FFE9C877", branco: "FFFFFFFF", preto: "FF000000", verm: "FFFF0000", cinza: "FF6B7A99",
 };
 var FMT = { int: "#,##0", pct: "0.0%", ppInd: '0.0"%"', pp: '+0.0" p.p.";-0.0" p.p.";0.0" p.p."' };
@@ -70,7 +72,8 @@ function cel(ref, s, v, num) {
 function gerar(cfg) {
   var E = new Estilos(), letra = Planilha._letra, linhasXml = [], mesclas = [], r = 1;
   var ind = cfg.ind, I = L.IND[ind], fmtVal = I.tipo === "pct" ? FMT.ppInd : FMT.int;
-  var temMedia = I.soma, nCols = 1 + 12 + 1 + (temMedia ? 1 : 0), ult = letra(nCols);
+  // os blocos podem ter indicadores diferentes (no Mix com fornecedor, os produtos vão em quantidade)
+  var temMedia = cfg.blocos.some(function (b) { return (L.IND[b.R.ind] || I).soma; }), nCols = 1 + 12 + 1 + (temMedia ? 1 : 0), ult = letra(nCols);
   var S = {
     tit: E.de({ sz: 16, b: true, cor: COR.ouro, fill: COR.marinho, al: "esquerda" }),
     sub: E.de({ sz: 11, b: true, cor: COR.branco, fill: COR.marinho, al: "esquerda" }),
@@ -81,19 +84,20 @@ function gerar(cfg) {
     hInd: E.de({ b: true, cor: COR.branco, fill: COR.roxo, borda: true }),
     hMes: E.de({ b: true, cor: COR.branco, fill: COR.mes, borda: true }),
     rot: E.de({ b: true, fill: COR.rot, borda: true }),
-    rotMeta: E.de({ b: true, fill: COR.meta, borda: true }),
     rod: E.de({ sz: 8, cor: COR.cinza, al: "esquerda" }),
   };
   function linha(cels, altura) { linhasXml.push('<row r="' + r + '"' + (altura ? ' ht="' + altura + '" customHeight="1"' : "") + ">" + cels.join("") + "</row>"); r++; }
   function estiloValor(tipoLinha, col, extra) {
-    var base = { borda: true, fmt: fmtVal };
-    if (tipoLinha === "meta") { base.fill = COR.meta; base.b = true; }
-    else if (col === "ano") { base.fill = COR.rot; base.b = true; }
+    var base = { borda: true, fmt: fmtVal };   // fmtVal é o do bloco da vez (ver o laço dos blocos)
+    if (col === "ano") { base.fill = COR.rot; base.b = true; }
     else base.fill = extra === "melhor" ? COR.melhor : COR.val;
     return E.de(base);
   }
-  function estiloPct(sub, col, neg, pp) {
-    return E.de({ borda: true, fmt: pp ? FMT.pp : FMT.pct, fill: sub === "meta" ? COR.meta : col === "ano" ? COR.rot : COR.val, cor: neg ? COR.verm : COR.preto, b: col === "ano" });
+  // x: o crescimento (fração ou p.p.); verde quando cresce, vermelho quando cai, como na tela
+  function estiloPct(sub, col, x, pp) {
+    var lim = pp ? 0.05 : 0.0005, s = x == null ? 0 : x > lim ? 1 : x < -lim ? -1 : 0;
+    return E.de({ borda: true, fmt: pp ? FMT.pp : FMT.pct, fill: s > 0 ? COR.sobe : s < 0 ? COR.cai : col === "ano" ? COR.rot : COR.val,
+                  cor: s > 0 ? COR.sobeT : s < 0 ? COR.caiT : COR.preto, b: col === "ano" || s !== 0 });
   }
   // faixa da Lube
   linha([cel("A" + r, S.tit, "LUBE DISTRIBUIDORA LTDA")].concat(range(2, nCols).map(function (c) { return cel(letra(c) + r, S.tit, ""); })), 28);
@@ -104,28 +108,29 @@ function gerar(cfg) {
   (cfg.filtros || []).forEach(function (f) { linha([cel("A" + r, S.frot, f[0]), cel("B" + r, S.fval, f[1])]); mesclas.push("B" + (r - 1) + ":" + ult + (r - 1)); });
   r++;
   cfg.blocos.forEach(function (b) {
-    var R = b.R, ultAno = R.ult;
+    var R = b.R, ultAno = R.ult, Ib = L.IND[R.ind] || I;
+    fmtVal = Ib.tipo === "pct" ? FMT.ppInd : FMT.int;
     linha([cel("A" + r, S.bloco, b.titulo), cel("B" + r, S.blocoSub, b.sub || "")]);
     mesclas.push("B" + (r - 1) + ":" + ult + (r - 1));
     var hdr = [cel("A" + r, S.hInd, "INDICADORES")];
     for (var mo = 1; mo <= 12; mo++) hdr.push(cel(letra(mo + 1) + r, S.hMes, L.MES_CURTO[mo - 1]));
-    hdr.push(cel(letra(14) + r, S.hInd, (I.soma || ind === "margem" ? "ANO " : "MÉDIA ") + ultAno));
-    if (temMedia) hdr.push(cel(letra(15) + r, S.hInd, "Média/Ano"));
+    hdr.push(cel(letra(14) + r, S.hInd, (Ib.soma || R.ind === "margem" ? "ANO " : "MÉDIA ") + ultAno));
+    if (temMedia) hdr.push(cel(letra(15) + r, S.hInd, Ib.soma ? "Média/Ano" : ""));
     linha(hdr, 16);
     R.linhas.forEach(function (l) {
-      var cs = [cel("A" + r, l.tipo === "meta" || l.sub === "meta" ? S.rotMeta : S.rot, l.rot)];
+      var cs = [cel("A" + r, S.rot, l.rot)];
       for (var mo = 1; mo <= 12; mo++) {
         var v = l.vals[mo - 1], ref = letra(mo + 1) + r;
         if (l.tipo === "pct") {
           var pp = v && v.pp != null, x = v ? (pp ? v.pp : v.pct) : null;
-          cs.push(cel(ref, estiloPct(l.sub, "mes", x != null && x < 0, pp), x, true));
+          cs.push(cel(ref, estiloPct(l.sub, "mes", x, pp), x, true));
         } else cs.push(cel(ref, estiloValor(l.tipo, "mes", l.melhor === mo ? "melhor" : null), v, true));
       }
       var colA = letra(14) + r, colM = letra(15) + r;
       if (l.tipo === "pct") {
         var a = l.ano_val, ppA = a && a.pp != null, xa = a ? (ppA ? a.pp : a.pct) : null;
-        cs.push(cel(colA, estiloPct(l.sub, "ano", xa != null && xa < 0, ppA), xa, true));
-        if (temMedia) { var m = l.media, ppM = m && m.pp != null, xm = m ? (ppM ? m.pp : m.pct) : null; cs.push(cel(colM, estiloPct(l.sub, "ano", xm != null && xm < 0, ppM), xm, true)); }
+        cs.push(cel(colA, estiloPct(l.sub, "ano", xa, ppA), xa, true));
+        if (temMedia) { var m = l.media, ppM = m && m.pp != null, xm = m ? (ppM ? m.pp : m.pct) : null; cs.push(cel(colM, estiloPct(l.sub, "ano", xm, ppM), xm, true)); }
       } else {
         cs.push(cel(colA, estiloValor(l.tipo, "ano"), l.ano_val, true));
         if (temMedia) cs.push(cel(colM, estiloValor(l.tipo, "ano"), l.media, true));

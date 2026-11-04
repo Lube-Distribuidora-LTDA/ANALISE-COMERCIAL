@@ -286,14 +286,21 @@ L.supsFiltro = function () {
   if (!eqs) return null;
   return new Set(supsOrdenados().filter(function (s) { return eqs.indexOf(s.eq) >= 0; }).map(function (s) { return s.cod; }));
 };
-/* RCAs de um conjunto de supervisores (ou de todos) */
+/* RCAs tirados da comparação (filtro RCA: todos marcados, desmarcar tira) — Set ou null */
+L.rcaFora = function () { var f = L.estado.filtros.rcaFora || []; return f.length ? new Set(f) : null; };
+/* RCAs de um conjunto de supervisores (ou de todos), sem os tirados da comparação */
 L.rcasDe = function (sups) {
-  var out = [];
-  L.SR.forEach(function (s, u) { var r = L.RCA.get(u); var sup = r ? r.sup : 0; if (!sups || sups.has(sup)) out.push(u); });
+  var out = [], fora = L.rcaFora();
+  L.SR.forEach(function (s, u) { var r = L.RCA.get(u); var sup = r ? r.sup : 0; if ((!sups || sups.has(sup)) && !(fora && fora.has(u))) out.push(u); });
   return out;
 };
+/* os tirados que estavam dentro de um conjunto de supervisores (ou de todos) */
+L.foraDe = function (sups) {
+  return (L.estado.filtros.rcaFora || []).filter(function (u) { var r = L.RCA.get(u); return !sups || sups.has(r ? r.sup : 0); });
+};
 /* Escopo = o que um bloco soma. tipo: total | equipe | semtele | sup | rca | rcas
-   grupo: a chave do r_grupo que dá positivação/mix sem contar duas vezes (ou null = soma, aproximada) */
+   grupo: a chave do r_grupo que dá positivação/mix sem contar duas vezes (ou null = soma, aproximada)
+   fora: os RCAs tirados da comparação que eram deste escopo (o grupo deixa de servir para positivação e mix) */
 L.escopoDaTela = function () {
   var f = L.estado.filtros, eqs = L.equipesFiltro(), sups = L.supsFiltro();
   if ((f.rca || []).length) {
@@ -304,30 +311,30 @@ L.escopoDaTela = function () {
   }
   if ((f.sup || []).length) {
     var ss = f.sup.slice();
-    return { tipo: "sup", rcas: L.rcasDe(sups), sups: sups, grupo: ss.length === 1 ? "P:" + ss[0] : null,
+    return { tipo: "sup", rcas: L.rcasDe(sups), sups: sups, fora: L.foraDe(sups), grupo: ss.length === 1 ? "P:" + ss[0] : null,
              grupos: ss.map(function (s) { return "P:" + s; }), nome: ss.length === 1 ? L.nomeSup(ss[0]) : ss.length + " supervisores" };
   }
   if (eqs && eqs.length === 1) {
     var e = L.equipeDeCod(eqs[0]);
-    return { tipo: "equipe", eq: e.cod, rcas: L.rcasDe(sups), sups: sups, grupo: "E:" + e.cod, nome: e.nome };
+    return { tipo: "equipe", eq: e.cod, rcas: L.rcasDe(sups), sups: sups, fora: L.foraDe(sups), grupo: "E:" + e.cod, nome: e.nome };
   }
-  if (eqs) return { tipo: "equipes", rcas: L.rcasDe(sups), sups: sups, grupo: null, grupos: eqs.map(function (c) { return "E:" + c; }),
+  if (eqs) return { tipo: "equipes", rcas: L.rcasDe(sups), sups: sups, fora: L.foraDe(sups), grupo: null, grupos: eqs.map(function (c) { return "E:" + c; }),
                     nome: eqs.map(function (c) { return L.equipeDeCod(c).nome; }).join(" + ") };
-  return { tipo: "total", rcas: L.rcasDe(null), sups: null, grupo: "T", nome: "LUBE (todas as equipes)" };
+  return { tipo: "total", rcas: L.rcasDe(null), sups: null, fora: L.foraDe(null), grupo: "T", nome: "LUBE (todas as equipes)" };
 };
 L.escopoSup = function (cod, rcasFiltro) {
   var sups = new Set([cod]);
   var rcas = L.rcasDe(sups).filter(function (u) { return !rcasFiltro || rcasFiltro.indexOf(u) >= 0; });
-  return { tipo: "sup", rcas: rcas, sups: sups, grupo: "P:" + cod, nome: L.nomeSup(cod) };
+  return { tipo: "sup", rcas: rcas, sups: sups, fora: L.foraDe(sups), grupo: "P:" + cod, nome: L.nomeSup(cod) };
 };
 L.escopoEquipe = function (cod, semTele) {
   var sups = new Set(supsOrdenados().filter(function (s) { return s.eq === cod && (!semTele || !s.tele); }).map(function (s) { return s.cod; }));
-  return { tipo: semTele ? "semtele" : "equipe", eq: cod, rcas: L.rcasDe(sups), sups: sups, grupo: (semTele ? "S:" : "E:") + cod,
+  return { tipo: semTele ? "semtele" : "equipe", eq: cod, rcas: L.rcasDe(sups), sups: sups, fora: L.foraDe(sups), grupo: (semTele ? "S:" : "E:") + cod,
            nome: semTele ? "S/TELEVENDAS" : L.equipeDeCod(cod).nome };
 };
 L.escopoRca = function (u) {
   var r = L.RCA.get(u);
-  return { tipo: "rca", rcas: [u], sups: new Set([r ? r.sup : 0]), grupo: null, rcaUnico: u, porRca: true, nome: L.nomeRca(u) };
+  return { tipo: "rca", rcas: [u], sups: new Set([r ? r.sup : 0]), fora: [], grupo: null, rcaUnico: u, porRca: true, nome: L.nomeRca(u) };
 };
 
 /* ------------------------------ somar um escopo ------------------------------ */
@@ -350,7 +357,8 @@ L.somarEscopo = function (esc) {
       var gr = L.GR.get(g); if (gr) { somarArr(a.p, gr.p); somarArr(a.x, gr.x); }
       var cg = L.CG.get(g); if (cg) { somarArr(a.cp, cg.p); somarArr(a.cx, cg.x); }
     });
-    a.aprox = !esc.grupo;
+    // com RCA tirado, o grupo ainda conta os clientes dele: aproximado até a recontagem (paginas.js, accDe)
+    a.aprox = !esc.grupo || !!(esc.fora && esc.fora.length);
   } else {
     esc.rcas.forEach(function (u) {
       var s = L.SR.get(u); if (s) { somarArr(a.p, s.p); somarArr(a.x, s.x); }
@@ -417,6 +425,23 @@ L.acumularConsulta = function (j, campoCod) {
     }
   }
   return out;
+};
+/* a recontagem exata de positivação e mix (/api/consulta "distintos") por cima de um acumulador */
+L.aplicarDistintos = function (a, j) {
+  a.p = zeros(nM); a.x = zeros(nM); a.cp = zeros(nA); a.cx = zeros(nA);
+  for (var i = 0; j && j.m && i < j.m.length; i++) {
+    var m = L.im(j.m[i]); if (m < 0 || m >= nM) continue;
+    a.p[m] = j.p[i]; a.x[m] = j.x[i];
+    if (j.m[i] % 100 === L.MOA) { var y = L.ya(Math.floor(j.m[i] / 100)); a.cp[y] = j.pc[i]; a.cx[y] = j.xc[i]; }
+  }
+  a.aprox = false;
+  return a;
+};
+/* tira de a os valores de b (venda, custo, quantidade, devolução; positivação e mix não se subtraem) */
+L.subtrairValores = function (a, b) {
+  ["v", "c", "q", "d", "cv", "cc", "cq", "cd"].forEach(function (k) { for (var i = 0; i < a[k].length; i++) a[k][i] -= b[k][i]; });
+  a.aprox = true;
+  return a;
 };
 /* soma vários acumuladores (ex.: os fornecedores escolhidos no filtro) */
 L.somarAcumuladores = function (lista) {

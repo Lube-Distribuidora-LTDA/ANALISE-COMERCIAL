@@ -8,6 +8,17 @@ Pedido do Júlio em 2026-11-04. Decisões dele no mesmo dia: **mês comercial** 
 Televendas** (como a planilha; no WinThor é de Grandes Contas), **meta do WinThor** e **todas as equipes
 abrindo no ES**.
 
+Mudanças do Júlio no mesmo dia, depois de ver no ar:
+- **Sem a meta na tela** ("não é necessário aparecer"); a carga da meta segue no banco.
+- **Verde quando cresce, vermelho quando cai** (com seta), no mês e no acumulado; no Excel, as cores da formatação
+  condicional.
+- **Filtro de RCA ao contrário:** todos marcados, desmarcar **tira o RCA da comparação** (sai dos números e o bloco dele
+  some); a pílula mostra só quem saiu, em vermelho. Positivação e mix são recontados no banco sem ele
+  (`consulta_distintos`), porque a soma dos grupos contaria os clientes dele.
+- **Fornecedor no filtro:** só o acumulado do recorte e, embaixo, **os produtos do fornecedor com a foto** (a miniatura
+  da pasta FOTOS_ION que o Gestão Comercial guarda em `trade.produto_miniatura`, servida por `api/img`).
+- Os filtros de puxar (Supervisor, RCA, Fornecedor) no **vermelho da Lube**.
+
 ## No ar
 
 - **https://analise-comercial.vercel.app** — projeto Vercel `analise-comercial` (Root `web`, Other, `gru1`, Node 22),

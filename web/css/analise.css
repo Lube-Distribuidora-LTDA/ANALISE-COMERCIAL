@@ -2,24 +2,30 @@
    Análise Comercial — o que é só desta tela. A base é a dos sistemas atuais (css/base.css, a mesma
    do Relatório 146: números em IBM Plex Sans, zero sem ponto no meio).
    O bloco segue a planilha do gestor (ACOMP INDICADORES ANO): meses em azul, INDICADORES/ANO/Média
-   em roxo, rótulos lilás, valores azul-claro, META laranja, melhor mês amarelo, queda em vermelho.
+   em roxo, rótulos lilás, valores azul-claro, melhor mês amarelo. A meta saiu e as comparações ganharam
+   verde (cresceu) e vermelho (caiu), com seta, no mês e no acumulado (Júlio, 2026-11-04); no tema claro,
+   o verde e o vermelho da formatação condicional do Excel.
    No tema claro as cores são as da planilha; no escuro, as mesmas famílias sobre o azul-marinho.
    ========================================================================== */
 :root, :root[data-tema="escuro"] {
   --pl-borda: #233766; --pl-mes: #2f4fb8; --pl-mes-t: #fff; --pl-roxo: #6a35b0; --pl-roxo-t: #fff;
   --pl-rot: rgba(155, 125, 235, .17); --pl-rot-t: #ddd3ff; --pl-val: rgba(95, 126, 245, .07); --pl-val-t: var(--t1);
-  --pl-meta: rgba(255, 160, 64, .16); --pl-meta-t: #ffcf9a; --pl-ano: rgba(155, 125, 235, .12);
+  --pl-ano: rgba(155, 125, 235, .12);
   --pl-melhor: rgba(255, 226, 64, .26); --pl-melhor-t: #fff3a6; --pl-neg: #ff6b74; --pl-pos: var(--t1);
+  --pl-sobe: rgba(52, 232, 158, .17); --pl-sobe-t: #6ff3bb; --pl-cai: rgba(255, 90, 100, .2); --pl-cai-t: #ff8d94;
   --pl-tag: #2a41c8; --pl-tag-t: #fff; --pl-tag-faixa: #e5202c;
-  --serie-atual: #5f7ef5; --serie-ant: #8da2c9; --serie-ant2: #a78bfa; --serie-ant3: #5b6f98; --meta: #e9c877;
+  --serie-atual: #5f7ef5; --serie-ant: #8da2c9; --serie-ant2: #a78bfa; --serie-ant3: #5b6f98;
+  --lube-verm: #E5101F; --lube-verm-lt: #ff6b74; --lube-verm-bg: rgba(229, 16, 31, .16);
 }
 :root[data-tema="claro"] {
   --pl-borda: #8ea9c8; --pl-mes: #7992b1; --pl-mes-t: #fff; --pl-roxo: #7030a0; --pl-roxo-t: #fff;
   --pl-rot: #ccc1da; --pl-rot-t: #1b1530; --pl-val: #dce6f2; --pl-val-t: #0b1533;
-  --pl-meta: #fcd5b5; --pl-meta-t: #3b2209; --pl-ano: #e4dcef;
+  --pl-ano: #e4dcef;
   --pl-melhor: #ffff00; --pl-melhor-t: #0b1533; --pl-neg: #e00000; --pl-pos: #0b1533;
+  --pl-sobe: #c6efce; --pl-sobe-t: #006100; --pl-cai: #ffc7ce; --pl-cai-t: #9c0006;
   --pl-tag: #2a41c8; --pl-tag-t: #fff; --pl-tag-faixa: #e5202c;
-  --serie-atual: #0070c0; --serie-ant: #9aa9c4; --serie-ant2: #8064a2; --serie-ant3: #c3cbe0; --meta: #1b1b1b;
+  --serie-atual: #0070c0; --serie-ant: #9aa9c4; --serie-ant2: #8064a2; --serie-ant3: #c3cbe0;
+  --lube-verm: #E5101F; --lube-verm-lt: #c40d1a; --lube-verm-bg: #fdedee;
 }
 
 /* ------------------------------ marca, miúdos (iguais ao 146) ------------------------------ */
@@ -52,6 +58,26 @@
 /* ------------------------------ faixa de filtros ------------------------------ */
 #fx-eq button, #fx-anos button { min-width: 46px; }
 .fx-sep { font: 700 10.5px var(--f-txt); letter-spacing: .14em; text-transform: uppercase; color: var(--t3); margin-left: 6px; }
+/* os filtros de puxar (Supervisor, RCA, Fornecedor) no vermelho da Lube (Júlio, 2026-11-04) */
+.fx-btn, .fx-btn.on { border-color: transparent; background: linear-gradient(180deg, #f0323e, var(--lube-verm)); color: #fff;
+  box-shadow: 0 8px 20px -12px rgba(229, 16, 31, .9); }
+.fx-btn:hover { border-color: transparent; color: #fff; filter: brightness(1.1); }
+.fx-btn svg { opacity: .95; }
+.fx-btn .n { background: #fff; color: var(--lube-verm); }
+.pop { border-top: 3px solid var(--lube-verm); }
+.pop-item.on .cx { background: var(--lube-verm); border-color: var(--lube-verm); }
+.pop-item.on .cx::after { border-color: #fff; }
+.pop-topo input:focus { border-color: var(--lube-verm); }
+/* RCA: desmarcado = fora da comparação */
+.pop-dica { display: flex; gap: 8px; align-items: flex-start; margin: 0 10px 6px; padding: 8px 10px; border-radius: 10px; background: var(--lube-verm-bg);
+  font: 500 12px/1.35 var(--f-txt); color: var(--t2); }
+.pop-dica svg { width: 14px; height: 14px; stroke: var(--lube-verm-lt); fill: none; stroke-width: 2; flex: none; margin-top: 1px; }
+.pop-tirar .pop-item.fora .tx { color: var(--lube-verm-lt); text-decoration: line-through; }
+.pop-tirar .pop-item.fora .cx { border-color: var(--lube-verm-lt); }
+.pop-rodape .rod-fora { color: var(--lube-verm-lt); font-weight: 700; }
+/* pílula de quem saiu da comparação: vermelha no lugar da dourada */
+.pilula.fora { background: var(--lube-verm-bg); border-color: var(--lube-verm); color: var(--lube-verm-lt); }
+.pilula.fora b { color: var(--lube-verm-lt); }
 
 /* ------------------------------ barra de cada tela ------------------------------ */
 .barra-tela { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
@@ -64,6 +90,9 @@
 .aviso-faixa { display: flex; gap: 10px; align-items: center; padding: 10px 14px; margin-bottom: 14px; border-radius: 12px; background: var(--info-bg);
   border: 1px solid color-mix(in srgb, var(--info) 35%, transparent); color: var(--t1); font: 500 13px var(--f-txt); }
 .aviso-faixa svg { width: 16px; height: 16px; stroke: var(--info); fill: none; stroke-width: 2; flex: none; }
+.aviso-faixa.fora { background: var(--lube-verm-bg); border-color: color-mix(in srgb, var(--lube-verm) 45%, transparent); }
+.aviso-faixa.fora svg { stroke: var(--lube-verm-lt); }
+.aviso-faixa.fora b { color: var(--lube-verm-lt); }
 .mostrar-mais { display: block; margin: 6px auto 24px; }
 .grupo-rca { margin-bottom: 8px; }
 
@@ -71,6 +100,8 @@
 .bloco { background: var(--s1); border: 1px solid var(--linha); border-radius: var(--raio); margin-bottom: 18px; box-shadow: var(--sombra); overflow: hidden; }
 .bloco.principal { border-color: color-mix(in srgb, var(--ouro) 38%, var(--linha)); }
 .bloco-cab { display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-bottom: 1px solid var(--linha); flex-wrap: wrap; }
+.bloco-cab > .foto-mini { width: 54px; height: 54px; border-radius: 12px; padding: 4px; }
+.bloco-cab > .foto-mini.sem svg { width: 22px; height: 22px; }
 /* etiqueta inclinada da marca: azul com a faixa vermelha */
 .bloco-tag {
   display: inline-flex; align-items: center; gap: 8px; border: 0; padding: 7px 16px 7px 14px; position: relative;
@@ -90,11 +121,16 @@
 .br-item { display: flex; flex-direction: column; align-items: flex-end; }
 .br-item small { font: 600 10.5px var(--f-txt); letter-spacing: .06em; text-transform: uppercase; color: var(--t3); white-space: nowrap; }
 .br-item b { font: 700 18px/1.25 var(--f-num); color: var(--t1); white-space: nowrap; }
-.br-item b.neg { color: var(--pl-neg); }
-.br-item b.pos { color: var(--ok); }
+.br-item b.neg { color: var(--pl-cai-t); }
+.br-item b.pos { color: var(--pl-sobe-t); }
 .bloco.principal .br-item b { font-size: 22px; color: var(--ouro-forte); }
-.bloco.principal .br-item b.neg { color: var(--pl-neg); }
-.bloco.principal .br-item b.pos { color: var(--ok); }
+.bloco.principal .br-item b.neg { color: var(--pl-cai-t); }
+.bloco.principal .br-item b.pos { color: var(--pl-sobe-t); }
+/* seta de crescimento e queda */
+.seta.pos::before, .planilha tr.pl-pct td.pos::before { content: "▲"; font-size: .7em; margin-right: 3px; vertical-align: 1px; }
+.seta.neg::before, .planilha tr.pl-pct td.neg::before { content: "▼"; font-size: .7em; margin-right: 3px; vertical-align: 1px; }
+.tabela td.seta.pos, .mes-filhos td.seta.pos { color: var(--pl-sobe-t); }
+.tabela td.seta.neg, .mes-filhos td.seta.neg { color: var(--pl-cai-t); }
 .bloco-rodape { display: flex; gap: 8px; align-items: center; padding: 8px 16px 10px; font: 500 11.5px var(--f-txt); color: var(--t3); }
 .bloco-rodape svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; flex: none; }
 
@@ -111,15 +147,14 @@ table.planilha { border-collapse: collapse; width: 100%; min-width: 1060px; font
 :root[data-tema="escuro"] .planilha td.pl-rot { background-color: var(--s1); }
 .planilha td.pl-v { background: var(--pl-val); color: var(--pl-val-t); }
 .planilha td.pl-a { background: var(--pl-ano); color: var(--t1); font-weight: 700; }
-.planilha tr.pl-meta td.pl-rot, .planilha tr.pl-meta td.pl-v, .planilha tr.pl-meta td.pl-a,
-.planilha tr.pl-pct.pl-meta td.pl-rot { box-shadow: inset 0 0 0 999px var(--pl-meta); color: var(--pl-meta-t); }
-.planilha tr.pl-meta td { font-weight: 700; }
-.planilha tr.pl-pct.pl-meta td.pl-v, .planilha tr.pl-pct.pl-meta td.pl-a { background: var(--pl-meta); }
 .planilha td.melhor { background: var(--pl-melhor); color: var(--pl-melhor-t); font-weight: 700; }
 .planilha td.parcial { font-style: italic; }
 .planilha td.zero { color: var(--t3); }
 .planilha td.neg { color: var(--pl-neg); font-weight: 600; }
 .planilha tr.pl-pct td.pl-v:not(.neg), .planilha tr.pl-pct td.pl-a:not(.neg) { color: var(--pl-pos); }
+/* verde quando cresce, vermelho quando cai (mês e acumulado) */
+.planilha tr.pl-pct td.pos { background: var(--pl-sobe); color: var(--pl-sobe-t); font-weight: 700; }
+.planilha tr.pl-pct td.neg { background: var(--pl-cai); color: var(--pl-cai-t); font-weight: 700; }
 .planilha tr.pl-mm td.pl-rot { font-style: italic; }
 .planilha td.click { cursor: pointer; }
 .planilha td.click:hover { outline: 2px solid var(--ouro); outline-offset: -2px; }

@@ -5,7 +5,8 @@
     "api/versao.js": { "maxDuration": 30 },
     "api/pacote.js": { "maxDuration": 60 },
     "api/consulta.js": { "maxDuration": 60 },
-    "api/atualizar.js": { "maxDuration": 30 }
+    "api/atualizar.js": { "maxDuration": 30 },
+    "api/img.js": { "maxDuration": 15 }
   },
   "headers": [
     {

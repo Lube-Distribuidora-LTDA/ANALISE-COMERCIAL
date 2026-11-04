@@ -3,6 +3,9 @@
  * (múltipla escolha com busca), pílulas dos filtros ativos. Veio do Relatório 146.
  * Regra da casa: a partir de "Todos", o clique seleciona só aquela opção; depois cada clique
  * soma ou tira; esvaziar volta para "Todos" (conjunto vazio = tudo).
+ * O RCA é ao contrário (Júlio, 2026-11-04): todos vêm marcados e desmarcar TIRA o RCA da comparação
+ * (filtros.rcaFora): ele sai dos números e o bloco dele some; a pílula mostra só quem saiu, em vermelho.
+ * filtros.rca continua sendo "só este RCA", quando se abre um RCA pelo bloco ou pela busca.
  * ========================================================================== */
 (function () {
 "use strict";
@@ -18,6 +21,8 @@ L.setFiltro = function (chave, ids) {
   // descer na hierarquia limpa o que ficou de fora: trocar a equipe tira supervisor e RCA de outra equipe
   if (chave === "eq") limparForaDaEquipe();
   if (chave === "sup") limparRcaForaDoSup();
+  // abrir um RCA tirado o põe de volta na comparação
+  if (chave === "rca" && L.estado.filtros.rcaFora) setLista("rcaFora", L.estado.filtros.rcaFora.filter(function (u) { return (ids || []).indexOf(u) < 0; }));
   mudou();
 };
 function limparForaDaEquipe() {
@@ -26,10 +31,12 @@ function limparForaDaEquipe() {
   if (sup.length) L.estado.filtros.sup = sup; else delete L.estado.filtros.sup;
   limparRcaForaDoSup();
 }
+function setLista(chave, a) { if (a.length) L.estado.filtros[chave] = a; else delete L.estado.filtros[chave]; }
 function limparRcaForaDoSup() {
   var sups = L.supsFiltro(); if (!sups) return;
-  var rca = (L.estado.filtros.rca || []).filter(function (u) { var r = L.RCA.get(u); return sups.has(r ? r.sup : 0); });
-  if (rca.length) L.estado.filtros.rca = rca; else delete L.estado.filtros.rca;
+  function doSup(u) { var r = L.RCA.get(u); return sups.has(r ? r.sup : 0); }
+  setLista("rca", (L.estado.filtros.rca || []).filter(doSup));
+  setLista("rcaFora", (L.estado.filtros.rcaFora || []).filter(doSup));
 }
 L.alternarFiltro = function (chave, id) {
   var a = (L.estado.filtros[chave] || []).slice(), i = a.indexOf(+id);
@@ -65,12 +72,15 @@ function abrir(chave, ancora) {
   if (aberto && aberto.chave === chave) return fechar();
   fechar();
   var dim = L.DIM[chave], itens = dim.itens();
-  var el = L.h("div", { class: "pop" });
+  var tirar = chave === "rca", kEst = tirar ? "rcaFora" : chave;   // RCA: todos marcados, desmarcar tira
+  var el = L.h("div", { class: "pop" + (tirar ? " pop-tirar" : "") });
   var inp = L.h("input", { type: "search", placeholder: "Buscar " + dim.rot.toLowerCase() + " por código ou nome…", autocomplete: "off", spellcheck: "false" });
   var lista = L.h("div", { class: "pop-lista" }), rod = L.h("div", { class: "pop-rodape" });
-  el.appendChild(L.h("div", { class: "pop-topo" }, inp)); el.appendChild(lista); el.appendChild(rod);
+  el.appendChild(L.h("div", { class: "pop-topo" }, inp));
+  if (tirar) el.appendChild(L.h("div", { class: "pop-dica", html: L.ic("info") + "<span>Todos entram na comparação. <b>Desmarque</b> quem deve sair: ele sai dos números e do bloco dele.</span>" }));
+  el.appendChild(lista); el.appendChild(rod);
   if (itens.length <= 10) inp.parentNode.style.display = "none";
-  function sel() { return L.estado.filtros[chave] || []; }
+  function sel() { return L.estado.filtros[kEst] || []; }
   function desenhar() {
     itens = dim.itens();
     var q = L.norm(inp.value).split(/\s+/).filter(Boolean), s = sel(), conj = {}; s.forEach(function (x) { conj[x] = 1; });
@@ -83,15 +93,19 @@ function abrir(chave, ancora) {
     mostrar.forEach(function (x) {
       var tx = L.h("span", { class: "tx", title: x.t });
       tx.innerHTML = destacar(x.t, q);
-      lista.appendChild(L.h("button", { class: "pop-item" + (conj[x.id] ? " on" : ""), type: "button", onclick: function () { L.alternarFiltro(chave, x.id); desenhar(); } },
+      var marcado = tirar ? !conj[x.id] : conj[x.id];
+      lista.appendChild(L.h("button", { class: "pop-item" + (marcado ? " on" : "") + (tirar && conj[x.id] ? " fora" : ""), type: "button",
+        title: tirar ? (conj[x.id] ? "Fora da comparação: clique para pôr de volta" : "Clique para tirar da comparação") : null,
+        onclick: function () { L.alternarFiltro(kEst, x.id); desenhar(); } },
         L.h("span", { class: "cx" }), tx, x.s ? L.h("span", { class: "cn", text: x.s.length > 24 ? x.s.slice(0, 23) + "…" : x.s }) : null));
     });
     if (ordenado.length > limite) lista.appendChild(L.h("div", { class: "pop-vazio", text: "+ " + L.fInt(ordenado.length - limite) + " resultados — refine a busca" }));
     L.limpar(rod);
-    rod.appendChild(L.h("span", { text: s.length ? s.length + " selecionado" + (s.length > 1 ? "s" : "") : "Todos" }));
+    rod.appendChild(L.h("span", { class: tirar && s.length ? "rod-fora" : null,
+      text: tirar ? (s.length ? s.length + " fora da comparação" : "Todos na comparação") : s.length ? s.length + " selecionado" + (s.length > 1 ? "s" : "") : "Todos" }));
     var acoes = L.h("span", { style: { display: "flex", gap: "6px" } });
-    if (q.length && res.length > 1 && res.length <= 300) acoes.appendChild(L.h("button", { class: "mini-btn", type: "button", text: "Marcar os " + res.length, onclick: function () { var a = sel().slice(); res.forEach(function (x) { if (a.indexOf(x.id) < 0) a.push(x.id); }); L.setFiltro(chave, a); desenhar(); } }));
-    acoes.appendChild(L.h("button", { class: "mini-btn", type: "button", text: "Limpar", onclick: function () { L.setFiltro(chave, []); desenhar(); } }));
+    if (q.length && res.length > 1 && res.length <= 300) acoes.appendChild(L.h("button", { class: "mini-btn", type: "button", text: (tirar ? "Tirar os " : "Marcar os ") + res.length, onclick: function () { var a = sel().slice(); res.forEach(function (x) { if (a.indexOf(x.id) < 0) a.push(x.id); }); L.setFiltro(kEst, a); desenhar(); } }));
+    acoes.appendChild(L.h("button", { class: "mini-btn", type: "button", text: tirar ? "Marcar todos" : "Limpar", onclick: function () { L.setFiltro(kEst, []); desenhar(); } }));
     rod.appendChild(acoes);
   }
   inp.addEventListener("input", desenhar);
@@ -159,8 +173,10 @@ L.atualizarFaixa = function () {
   var box = L.$("faixa-filtros"); if (!box || !box.dataset.pagina) return;
   var f = L.estado.filtros;
   box.querySelectorAll(".fx-btn[data-k]").forEach(function (b) {
-    var a = f[b.dataset.k] || [], n = b.querySelector(".n");
-    b.classList.toggle("on", a.length > 0); n.hidden = !a.length; n.textContent = a.length;
+    var tirar = b.dataset.k === "rca", a = f[tirar ? "rcaFora" : b.dataset.k] || [], n = b.querySelector(".n");
+    b.classList.toggle("on", a.length > 0); b.classList.toggle("tira", tirar && a.length > 0);
+    n.hidden = !a.length; n.textContent = (tirar ? "−" : "") + a.length;
+    if (tirar) b.title = a.length ? a.length + " RCA" + (a.length > 1 ? "s" : "") + " fora da comparação" : "Todos os RCAs na comparação: desmarque quem deve sair";
   });
   var eqs = f.eq || [];
   box.querySelectorAll("#fx-eq button").forEach(function (b) { var id = +b.dataset.id; b.classList.toggle("on", id === 0 ? !eqs.length : eqs.indexOf(id) >= 0); });
@@ -169,14 +185,16 @@ L.atualizarFaixa = function () {
   L.limpar(pil);
   var qtd = 0;
   ["sup", "rca", "forn"].forEach(function (k) {
-    (f[k] || []).forEach(function (id) { qtd++; pil.appendChild(pilula(L.DIM[k].rot, L.nomeDe(k, id), function () { L.alternarFiltro(k, id); })); });
+    (f[k] || []).forEach(function (id) { qtd++; pil.appendChild(pilula(k === "rca" ? "Só o RCA" : L.DIM[k].rot, L.nomeDe(k, id), function () { L.alternarFiltro(k, id); })); });
   });
+  // só quem saiu da comparação, em vermelho; o x põe de volta
+  (f.rcaFora || []).forEach(function (id) { qtd++; pil.appendChild(pilula("Fora", L.nomeDe("rca", id), function () { L.alternarFiltro("rcaFora", id); }, true)); });
   pil.style.display = qtd ? "" : "none";
   var nl = box.querySelector(".fx-limpar"); if (nl) nl.style.display = Object.keys(f).length ? "" : "none";
 };
-function pilula(rot, texto, aoRemover) {
-  return L.h("span", { class: "pilula" }, L.h("b", { text: rot }), L.h("span", { text: texto, title: texto }),
-    L.h("button", { type: "button", title: "Remover", html: L.ic("x"), onclick: aoRemover }));
+function pilula(rot, texto, aoRemover, fora) {
+  return L.h("span", { class: "pilula" + (fora ? " fora" : "") }, L.h("b", { text: rot }), L.h("span", { text: texto, title: texto + (fora ? " · fora da comparação" : "") }),
+    L.h("button", { type: "button", title: fora ? "Pôr de volta na comparação" : "Remover", html: L.ic("x"), onclick: aoRemover }));
 }
 
 /* descrição dos filtros, para o Excel e para os títulos */
@@ -185,6 +203,7 @@ L.descricaoFiltros = function () {
   out.push(["Equipe", L.equipesFiltro() ? L.equipesFiltro().map(function (c) { return L.equipeDeCod(c).nome; }).join(", ") : "Todas"]);
   if ((f.sup || []).length) out.push(["Supervisor", f.sup.map(function (s) { return L.nomeSup(s); }).join(", ")]);
   if ((f.rca || []).length) out.push(["RCA", f.rca.map(function (u) { return u + " " + L.nomeRca(u); }).join(", ")]);
+  if ((f.rcaFora || []).length) out.push(["RCAs fora da comparação", f.rcaFora.map(function (u) { return u + " " + L.nomeRca(u); }).join(", ")]);
   if ((f.forn || []).length) out.push(["Fornecedor", f.forn.map(function (x) { return x + " " + L.nomeForn(x); }).join(", ")]);
   out.push(["Anos", (L.estado.anos || []).join(", ")]);
   out.push(["Mês", "comercial (semanas de sábado a sexta)"]);

@@ -8,6 +8,9 @@
  *   { tipo: "fornecedores", rcas: [codusur...] }
  *       os fornecedores de um grupo de RCAs, com positivação e mix exatos
  *       (analise_comercial.consulta_fornecedores)
+ *   { tipo: "distintos", rcas: [codusur...], forns: [codfornec...] | null }
+ *       positivação e mix recontados para um grupo de RCAs (quando se tira RCA da comparação)
+ *       (analise_comercial.consulta_distintos)
  * Os dois trazem também o trecho do mês atual que já fechou, para a comparação com o mesmo número de dias.
  * POST porque a lista de RCAs de uma equipe inteira passa de 300 códigos.
  */
@@ -48,6 +51,9 @@ module.exports = async function handler(req, res) {
     } else if (corpo.tipo === "fornecedores") {
       if (!rcas || !rcas.length) return json(res, 400, { erro: "rcas", mensagem: "Escolha ao menos um RCA." });
       r = await consultar("SELECT analise_comercial.consulta_fornecedores($1) AS j", [rcas]);
+    } else if (corpo.tipo === "distintos") {
+      if (!rcas || !rcas.length) return json(res, 400, { erro: "rcas", mensagem: "Escolha ao menos um RCA." });
+      r = await consultar("SELECT analise_comercial.consulta_distintos($1, $2) AS j", [rcas, codigos(corpo.forns)]);
     } else {
       return json(res, 400, { erro: "tipo", mensagem: "Consulta desconhecida." });
     }

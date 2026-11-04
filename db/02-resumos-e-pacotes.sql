@@ -451,7 +451,8 @@ begin
     'qc', coalesce(array_agg(round(coalesce(qt_c, 0), 3)::float8 order by mes, codprod), '{}'),
     'dc', coalesce(array_agg(round(coalesce(dev_c, 0), 6)::float8 order by mes, codprod), '{}'),
     'nc', coalesce(array_agg(coalesce(posit_c, 0) order by mes, codprod), '{}'),
-    'prod', (select json_agg(json_build_array(p.codprod, p.descricao, p.embalagem, p.unidade, p.obs2, p.dtexclusao) order by p.codprod)
+    'prod', (select json_agg(json_build_array(p.codprod, p.descricao, p.embalagem, p.unidade, p.obs2, p.dtexclusao,
+                                              exists (select 1 from trade.produto_miniatura f where f.codprod = p.codprod)) order by p.codprod)
                from analise_comercial.produto p where p.codprod in (select distinct codprod from t)))
     into j from t;
   return j;
