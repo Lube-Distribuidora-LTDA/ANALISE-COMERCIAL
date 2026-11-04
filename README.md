@@ -17,7 +17,7 @@ Mudanças do Júlio no mesmo dia, depois de ver no ar:
   (`consulta_distintos`), porque a soma dos grupos contaria os clientes dele.
 - **Fornecedor no filtro:** só o acumulado do recorte e, embaixo, **os produtos do fornecedor com a foto** (a miniatura
   da pasta FOTOS_ION que o Gestão Comercial guarda em `trade.produto_miniatura`, servida por `api/img`).
-- Os filtros de puxar (Supervisor, RCA, Fornecedor) no **vermelho da Lube**.
+- A **barra de puxar a tabela para o lado** (tela pequena) no **vermelho da Lube**.
 
 ## No ar
 

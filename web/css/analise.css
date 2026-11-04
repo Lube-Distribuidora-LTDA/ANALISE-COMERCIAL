@@ -58,17 +58,9 @@
 /* ------------------------------ faixa de filtros ------------------------------ */
 #fx-eq button, #fx-anos button { min-width: 46px; }
 .fx-sep { font: 700 10.5px var(--f-txt); letter-spacing: .14em; text-transform: uppercase; color: var(--t3); margin-left: 6px; }
-/* os filtros de puxar (Supervisor, RCA, Fornecedor) no vermelho da Lube (Júlio, 2026-11-04) */
-.fx-btn, .fx-btn.on { border-color: transparent; background: linear-gradient(180deg, #f0323e, var(--lube-verm)); color: #fff;
-  box-shadow: 0 8px 20px -12px rgba(229, 16, 31, .9); }
-.fx-btn:hover { border-color: transparent; color: #fff; filter: brightness(1.1); }
-.fx-btn svg { opacity: .95; }
-.fx-btn .n { background: #fff; color: var(--lube-verm); }
-.pop { border-top: 3px solid var(--lube-verm); }
-.pop-item.on .cx { background: var(--lube-verm); border-color: var(--lube-verm); }
-.pop-item.on .cx::after { border-color: #fff; }
-.pop-topo input:focus { border-color: var(--lube-verm); }
-/* RCA: desmarcado = fora da comparação */
+/* RCA: desmarcado = fora da comparação; o número no botão fica vermelho */
+.fx-btn.tira { border-color: color-mix(in srgb, var(--lube-verm) 60%, transparent); background: var(--lube-verm-bg); color: var(--lube-verm-lt); }
+.fx-btn.tira .n { background: var(--lube-verm); color: #fff; }
 .pop-dica { display: flex; gap: 8px; align-items: flex-start; margin: 0 10px 6px; padding: 8px 10px; border-radius: 10px; background: var(--lube-verm-bg);
   font: 500 12px/1.35 var(--f-txt); color: var(--t2); }
 .pop-dica svg { width: 14px; height: 14px; stroke: var(--lube-verm-lt); fill: none; stroke-width: 2; flex: none; margin-top: 1px; }
@@ -135,6 +127,13 @@
 .bloco-rodape svg { width: 13px; height: 13px; stroke: currentColor; fill: none; stroke-width: 2; flex: none; }
 
 .pl-wrap { overflow-x: auto; }
+/* a barra de puxar a tabela para o lado (tela pequena) no vermelho da Lube (Júlio, 2026-11-04) */
+.pl-wrap::-webkit-scrollbar { height: 12px; }
+.pl-wrap::-webkit-scrollbar-track { background: var(--lube-verm-bg); }
+.pl-wrap::-webkit-scrollbar-thumb { background: linear-gradient(180deg, #f0323e, var(--lube-verm)); border-radius: 99px;
+  border: 2px solid transparent; background-clip: padding-box; }
+.pl-wrap::-webkit-scrollbar-thumb:hover { background: var(--lube-verm); background-clip: padding-box; }
+@supports not selector(::-webkit-scrollbar) { .pl-wrap { scrollbar-color: var(--lube-verm) var(--lube-verm-bg); } }
 table.planilha { border-collapse: collapse; width: 100%; min-width: 1060px; font: 500 12px var(--f-num); }
 .planilha th, .planilha td { border: 1px solid var(--pl-borda); padding: 5px 5px; text-align: center; white-space: nowrap; }
 .planilha th { font: 700 12px var(--f-txt); letter-spacing: .02em; }
