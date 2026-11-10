@@ -12,7 +12,9 @@
 --                 (ajuste_rca), decisão do Júlio em 2026-11-04.
 --   MÊS         = mês COMERCIAL, de semanas fechadas sábado → sexta (tabela calendario). Fev/2026 bateu
 --                 ao real e jan a set/2026 ficaram entre 0,00% e 0,06% da planilha.
---   POSITIVAÇÃO = clientes distintos com venda; MIX = SKUs distintos vendidos; MARGEM = (venda − custo) ÷
+--   POSITIVAÇÃO = clientes distintos com PEDIDO DIGITADO, a regra do Relatório 146 (desde 2026-11-10, tabela
+--                 analise_comercial.pedido, db/04); antes era só pedido faturado com venda.
+--   MIX = SKUs distintos vendidos (faturado); MARGEM = (venda − custo) ÷
 --                 venda, com custo = QT × (VLCUSTOFIN − ST) de todos os itens (o lucro do 146).
 --   META        = a do WinThor (PCMETARCA, que soma exatamente a PCMETASUP), decisão do Júlio.
 --

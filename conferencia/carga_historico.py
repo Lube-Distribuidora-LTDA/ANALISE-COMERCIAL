@@ -15,6 +15,7 @@ Uso:
   python -X utf8 carga_historico.py --gravar
   python -X utf8 carga_historico.py --desde 2025-01-01 --ate 2025-12-31 --gravar
   python -X utf8 carga_historico.py --so-cadastros --gravar           (RCA, supervisor, produto, fornecedor)
+  python -X utf8 carga_historico.py --so pedido --gravar              (so os pedidos da positivacao, regra do 146)
 """
 import argparse
 import io
@@ -40,6 +41,7 @@ PERIODICOS = {
     "analise_comercial.venda_45d": ("analise_comercial.venda", "c.data >= :desde"),
     "analise_comercial.devolucao": ("analise_comercial.devolucao", "m.dtmov >= :desde"),
     "analise_comercial.meta": ("analise_comercial.meta", "m.data >= :desde"),
+    "analise_comercial.pedido_60d": ("analise_comercial.pedido", "c.data >= :desde"),
 }
 CADASTROS = ["analise_comercial.rca", "analise_comercial.supervisor", "analise_comercial.produto",
              "analise_comercial.fornecedor"]
@@ -107,6 +109,8 @@ def main():
     ap.add_argument("--ate", default=None, help="ultimo dia (padrao: hoje)")
     ap.add_argument("--gravar", action="store_true")
     ap.add_argument("--so-cadastros", action="store_true")
+    ap.add_argument("--so", nargs="+", choices=["venda", "devolucao", "pedido"],
+                    help="so estes periodicos, mes a mes (sem cadastros nem meta)")
     a = ap.parse_args()
     de = date.fromisoformat(a.desde)
     ate = date.fromisoformat(a.ate) if a.ate else date.today()
@@ -116,7 +120,7 @@ def main():
     t0 = time.time()
 
     # cadastros: inteiros, troca tudo
-    for nome in CADASTROS:
+    for nome in ([] if a.so else CADASTROS):
         f = cat[nome]
         cur = ora.cursor()
         cur.execute(f["sql"])
@@ -129,22 +133,28 @@ def main():
             pg.commit()
     if a.so_cadastros:
         return
+    nomes = {"venda": "analise_comercial.venda_45d", "devolucao": "analise_comercial.devolucao",
+             "pedido": "analise_comercial.pedido_60d"}
+    so = [nomes[x] for x in a.so] if a.so else None
 
     # meta: um pedaco so (pequena), do comeco ao fim do que existe
     f = cat["analise_comercial.meta"]
-    sql = f["sql"].replace(PERIODICOS[f["nome"]][1], PERIODICOS[f["nome"]][1] + " AND m.data < :ate")
-    cur = ora.cursor()
-    cur.execute(sql, desde=de, ate=date(2100, 1, 1))
-    linhas = cur.fetchall()
-    print(f"{f['nome']:32} {len(linhas):>9,} linhas (desde {de:%d/%m/%Y})")
-    if pg:
+    if so:
+        f = None
+    if f:
+        sql = f["sql"].replace(PERIODICOS[f["nome"]][1], PERIODICOS[f["nome"]][1] + " AND m.data < :ate")
+        cur = ora.cursor()
+        cur.execute(sql, desde=de, ate=date(2100, 1, 1))
+        linhas = cur.fetchall()
+        print(f"{f['nome']:32} {len(linhas):>9,} linhas (desde {de:%d/%m/%Y})")
+    if f and pg:
         with pg.cursor() as c:
             c.execute("DELETE FROM analise_comercial.meta WHERE data >= %s", (de,))
             copiar(c, f["destino"], f["colunas"], linhas)
         pg.commit()
 
-    # venda e devolucao: mes a mes
-    for nome in ("analise_comercial.venda_45d", "analise_comercial.devolucao"):
+    # venda, devolucao e pedido (positivacao): mes a mes
+    for nome in (so or ("analise_comercial.venda_45d", "analise_comercial.devolucao", "analise_comercial.pedido_60d")):
         f = cat[nome]
         tabela, pred = PERIODICOS[nome]
         col_ora = pred.split(" >= ")[0]

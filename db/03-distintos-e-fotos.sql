@@ -6,14 +6,16 @@
 -- de SKUs repetidos). O painel chama esta função só para os grupos que perderam algum RCA.
 -- =============================================================================
 drop function if exists analise_comercial.consulta_distintos(integer[]);
-/* p_forns: só a venda desses fornecedores (nulo = todos) */
+/* p_forns: só a venda desses fornecedores (nulo = todos).
+   Sem fornecedor, a positivação é a do Relatório 146 (cliente com pedido digitado, analise_comercial.pedido, desde
+   2026-11-10); com fornecedor, os clientes que compraram itens dele (faturado: o pedido não diz o fornecedor). */
 create or replace function analise_comercial.consulta_distintos(p_rcas integer[], p_forns integer[] default null) returns json
 language plpgsql stable as $$
 declare v_moa integer; v_k integer; v_inicio date; j json;
 begin
   select c.mes, c.inicio into v_moa, v_inicio from analise_comercial.calendario c where current_date between c.inicio and c.fim;
   v_k := (current_date - 1) - v_inicio;
-  with t as (
+  with it as (
     select d.mes,
            count(distinct v.codcli) as p,
            count(distinct v.codprod) as x,
@@ -22,7 +24,21 @@ begin
       from analise_comercial.venda v join analise_comercial.dia d on d.data = v.data
      where v.codusur = any (p_rcas) and v.venda > 0
        and (p_forns is null or v.codprod in (select codprod from analise_comercial.produto where coalesce(codfornec, 0) = any (p_forns)))
-     group by d.mes)
+     group by d.mes),
+  pe as (
+    select d.mes,
+           count(distinct p.codcli) as p,
+           count(distinct p.codcli) filter (where d.mes_do_ano = v_moa and d.ordem <= v_k) as pc
+      from analise_comercial.pedido p join analise_comercial.dia d on d.data = p.data
+     where p_forns is null and p.codusur = any (p_rcas)
+     group by d.mes),
+  t as (
+    select coalesce(it.mes, pe.mes) as mes,
+           case when p_forns is null then coalesce(pe.p, 0) else coalesce(it.p, 0) end as p,
+           coalesce(it.x, 0) as x,
+           case when p_forns is null then coalesce(pe.pc, 0) else coalesce(it.pc, 0) end as pc,
+           coalesce(it.xc, 0) as xc
+      from it full join pe on pe.mes = it.mes)
   select json_build_object(
     'm', coalesce(array_agg(mes order by mes), '{}'),
     'p', coalesce(array_agg(p order by mes), '{}'),

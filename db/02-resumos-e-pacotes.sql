@@ -80,7 +80,7 @@ end $$;
 do $$
 declare t text;
 begin
-  foreach t in array array['venda', 'devolucao', 'meta'] loop
+  foreach t in array array['venda', 'devolucao', 'meta'] loop   -- o pedido (positivação) ganha o mesmo gatilho no db/04
     execute format('drop trigger if exists %1$s_sujo_i on analise_comercial.%1$s', t);
     execute format('drop trigger if exists %1$s_sujo_u on analise_comercial.%1$s', t);
     execute format('drop trigger if exists %1$s_sujo_d on analise_comercial.%1$s', t);
@@ -148,9 +148,13 @@ begin
     insert into analise_comercial.%1$s_rca (mes, codusur, venda, custo, qt, posit, mix, dev, meta)
     with v as (
       select d.mes, v.codusur, sum(v.venda) as venda, sum(v.custo) as custo, sum(v.qt) as qt,
-             count(distinct v.codcli) filter (where v.venda > 0) as posit,
              count(distinct v.codprod) filter (where v.venda > 0) as mix
         from analise_comercial.venda v join _dias d on d.data = v.data
+       group by 1, 2),
+    -- positivação = a do Relatório 146: cliente com pedido digitado (analise_comercial.pedido)
+    pp as (
+      select d.mes, p.codusur, count(distinct p.codcli) as posit
+        from analise_comercial.pedido p join _dias d on d.data = p.data
        group by 1, 2),
     x as (
       select d.mes, x.codusur, sum(x.dev) as dev
@@ -162,29 +166,45 @@ begin
        where %2$L = 'r'
          and (extract(year from m.data) * 100 + extract(month from m.data))::integer in (select distinct mes from _dias)
        group by 1, 2),
-    k as (select mes, codusur from v union select mes, codusur from x union select mes, codusur from mt)
-    select k.mes, k.codusur, coalesce(v.venda, 0), coalesce(v.custo, 0), coalesce(v.qt, 0), coalesce(v.posit, 0),
+    k as (select mes, codusur from v union select mes, codusur from pp union select mes, codusur from x
+          union select mes, codusur from mt)
+    select k.mes, k.codusur, coalesce(v.venda, 0), coalesce(v.custo, 0), coalesce(v.qt, 0), coalesce(pp.posit, 0),
            coalesce(v.mix, 0), coalesce(x.dev, 0), coalesce(mt.meta, 0)
-      from k left join v using (mes, codusur) left join x using (mes, codusur) left join mt using (mes, codusur)
+      from k left join v using (mes, codusur) left join pp using (mes, codusur) left join x using (mes, codusur)
+      left join mt using (mes, codusur)
   $q$, p_t, p_t);
 
-  -- positivação e mix sem contar duas vezes: supervisor, equipe, equipe sem televendas, total
+  -- positivação e mix sem contar duas vezes: supervisor, equipe, equipe sem televendas, total.
+  -- Positivação pelos pedidos digitados (a regra do Relatório 146); mix pelos itens faturados.
   execute format($q$
     insert into analise_comercial.%1$s_grupo (mes, grupo, posit, mix)
-    select mes, grupo, posit, mix from (
+    with gp as (
       select mes,
              case when grouping(sup) = 0 then 'P:' || sup
                   when grouping(tv) = 0 then case when tv then null else 'S:' || eq end
                   when grouping(eq) = 0 then 'E:' || eq
                   else 'T' end as grupo,
-             count(distinct codcli) filter (where venda > 0) as posit,
+             count(distinct codcli) as posit
+        from (select d.mes, p.codcli,
+                     coalesce(m.codsupervisor, 0) as sup, coalesce(m.equipe, 'OUTROS') as eq, coalesce(m.televendas, false) as tv
+                from analise_comercial.pedido p join _dias d on d.data = p.data
+                left join analise_comercial.mapa_rca m on m.codusur = p.codusur) z
+       group by grouping sets ((mes, sup), (mes, eq), (mes, eq, tv), (mes))),
+    gm as (
+      select mes,
+             case when grouping(sup) = 0 then 'P:' || sup
+                  when grouping(tv) = 0 then case when tv then null else 'S:' || eq end
+                  when grouping(eq) = 0 then 'E:' || eq
+                  else 'T' end as grupo,
              count(distinct codprod) filter (where venda > 0) as mix
-        from (select d.mes, v.codcli, v.codprod, v.venda,
+        from (select d.mes, v.codprod, v.venda,
                      coalesce(m.codsupervisor, 0) as sup, coalesce(m.equipe, 'OUTROS') as eq, coalesce(m.televendas, false) as tv
                 from analise_comercial.venda v join _dias d on d.data = v.data
                 left join analise_comercial.mapa_rca m on m.codusur = v.codusur) z
-       group by grouping sets ((mes, sup), (mes, eq), (mes, eq, tv), (mes))
-    ) q where grupo is not null
+       group by grouping sets ((mes, sup), (mes, eq), (mes, eq, tv), (mes)))
+    select coalesce(gp.mes, gm.mes), coalesce(gp.grupo, gm.grupo), coalesce(gp.posit, 0), coalesce(gm.mix, 0)
+      from (select * from gp where grupo is not null) gp
+      full join (select * from gm where grupo is not null) gm on gm.mes = gp.mes and gm.grupo = gp.grupo
   $q$, p_t);
 
   -- por fornecedor (supervisor × fornecedor com as somas; grupos só com positivação e mix)

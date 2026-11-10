@@ -230,6 +230,15 @@ function avisoCalendario() {
   if (!ded.length) return null;
   return L.nota("Os meses comerciais de " + ded[0].ano + " foram deduzidos do dado (semanas de sábado a sexta que mais batem com a planilha): a conferir com o comercial.");
 }
+/* a regra da positivação, para conferir com o Relatório 146 (Júlio, 2026-11-10: os BIs batem entre eles) */
+function notaPosit(comForn) {
+  var c = L.CALK.get(L.MES_ATUAL), hoje = L.fData(L.HOJE);
+  var txt = comForn
+    ? "Com fornecedor no filtro, a positivação conta os clientes que compraram itens dele (pedido faturado: o pedido digitado não diz o fornecedor)."
+    : "Positivação = clientes com pedido no mês, digitado ou já faturado (a mesma regra do Relatório 146). Para conferir no 146, use o mesmo período: " +
+      (c ? "o mês comercial atual vai de " + L.fData(c.inicio) + " a " + L.fData(c.fim) + " (hoje, " + hoje + ")." : "o do mês comercial.");
+  return L.nota(txt);
+}
 function esperaEm(box, texto) { L.limpar(box).appendChild(L.espera(texto)); }
 
 /* ------------------------------ telas de indicador (como a planilha) ------------------------------ */
@@ -279,6 +288,7 @@ function telaIndicador(ind) {
       if (filhos.length && !vistos) lista.appendChild(L.h("div", { class: "vazio", html: "<b>Sem venda</b>Nenhum " + rotFilhos(esc) + " com venda nos anos escolhidos." }));
       if (filhos.length) lista.insertBefore(L.secao(filhos[0].tipo === "rca" ? "Por RCA" : filhos.some(function (f) { return f.tipo === "sup"; }) ? "Por supervisor" : "Por equipe"), lista.firstChild);
       var nc = avisoCalendario(); if (nc) lista.appendChild(nc);
+      if (ind === "posit") lista.appendChild(notaPosit(false));
       L.executarFila();
     }).catch(function (e) { console.error(e); L.limpar(topo).appendChild(L.erroTela("Não foi possível somar", e.message || String(e))); });
   };
@@ -298,6 +308,7 @@ function mostrarProdutosForn(lista, promProd, forns, indProd, ind, an, blocos, b
       tudos.push(listarProdutos(sec, itens, indProd, an, blocos, null, aplicar));
     });
     if (ind === "mix") lista.appendChild(L.nota("No mix, cada produto é 1 SKU: os blocos dos produtos mostram a quantidade vendida."));
+    if (ind === "posit") lista.appendChild(notaPosit(true));
     if (busca) busca.ligar(lista, function () { tudos.forEach(function (f) { f(); }); });
     L.executarFila();
   }).catch(function (e) { L.limpar(lista).appendChild(L.erroTela("Não foi possível ler os produtos", e.message || String(e))); });

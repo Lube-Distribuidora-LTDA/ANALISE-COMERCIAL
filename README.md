@@ -55,7 +55,7 @@ WinThor (Oracle) ──AGENTE LUBE (SRV-IA, de minuto em minuto)──▶ DATA W
 | **Sell out** | venda do Relatório 146 (pedido **faturado**, pela **data do pedido**, sem ST, fora bonificação e as condições 5, 6, 11, 12) **− devolução sem ST** (PCMOV ED: `QT × (PUNITCONT − ST)`, pela data do movimento). Por item: `QT × (PVENDA − ST)`, que soma exatamente a venda do pedido (8.464 pedidos de fev/2026, diferença zero) |
 | **Supervisor** | o **atual** do RCA (PCUSUARI), como a planilha. RCA 41 em Televendas (`analise_comercial.ajuste_rca`) |
 | **Mês** | **comercial**: semanas fechadas de sábado a sexta, 4-4-4-5-4-5-4-4-5-4-4-5 em 2025 e 2026 (`analise_comercial.calendario`) |
-| **Positivação** | clientes distintos com venda (sem contar duas vezes o cliente de dois RCAs: `r_grupo`) |
+| **Positivação** | a do **Relatório 146** (desde 2026-11-10): clientes distintos com **pedido digitado** (posição L, M, B, P, F ou C sem cancelamento; fora as condições 4, 8, 10, 13, 20, 98, 99), tabela `analise_comercial.pedido`, sem contar duas vezes o cliente de dois RCAs (`r_grupo`). Com fornecedor no filtro, os clientes dos itens faturados |
 | **Mix** | SKUs distintos vendidos |
 | **Margem** | `(venda − custo) ÷ venda`, custo = `QT × (VLCUSTOFIN − ST)` de todos os itens (o lucro do 146) |
 | **Meta** | PCMETARCA (somada pelo supervisor atual dá exatamente a PCMETASUP), no mês do calendário da data |
