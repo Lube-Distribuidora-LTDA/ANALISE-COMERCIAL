@@ -20,6 +20,8 @@ function anos() {
 }
 L.anosTela = anos;
 function fornSel() { var f = L.estado.filtros.forn || []; return f.length ? new Set(f) : null; }
+/* os supervisores do escopo para as consultas (o supervisor do pedido; nulo = todos) */
+function supsDe(esc) { return esc.sups ? Array.from(esc.sups) : null; }
 function ultAno() { var a = anos(); return a[a.length - 1]; }
 
 /* acumulador de um escopo (Promise), com o filtro de fornecedor e sem os RCAs tirados da comparação.
@@ -33,7 +35,7 @@ function accDe(esc, ind) {
     var mapa = L.somarFornecedores(esc, fs), lista = Array.from(mapa.values());
     p = Promise.resolve(lista.length === 1 ? lista[0] : lista.length ? L.somarAcumuladores(lista) : L.acumulador());
   } else {
-    p = L.consultar({ tipo: "rcas", forns: Array.from(fs), rcas: esc.rcas }).then(function (j) {
+    p = L.consultar({ tipo: "rcas", forns: Array.from(fs), rcas: esc.rcas, sups: supsDe(esc) }).then(function (j) {
       var a = L.somarAcumuladores(Array.from(L.acumularConsulta(j, "u").values()));
       a.aprox = esc.rcas.length > 1;
       return a;
@@ -42,7 +44,7 @@ function accDe(esc, ind) {
   if (ind !== "posit" && ind !== "mix") return p;
   return p.then(function (a) {
     if (!a.aprox) return a;
-    return L.consultar({ tipo: "distintos", rcas: esc.rcas, forns: fs ? Array.from(fs) : null }).then(function (j) { return L.aplicarDistintos(a, j); });
+    return L.consultar({ tipo: "distintos", rcas: esc.rcas, forns: fs ? Array.from(fs) : null, sups: supsDe(esc) }).then(function (j) { return L.aplicarDistintos(a, j); });
   });
 }
 L.accDe = accDe;
@@ -54,10 +56,10 @@ function fornecedoresDe(esc, ind) {
   var fs = fornSel(), fora = esc.fora || [];
   if (!esc.rcas.length) return Promise.resolve(new Map());
   if (esc.porRca || (fora.length && (ind === "posit" || ind === "mix")))
-    return L.consultar({ tipo: "fornecedores", rcas: esc.rcas }).then(function (j) { return L.acumularConsulta(j, "f"); });
+    return L.consultar({ tipo: "fornecedores", rcas: esc.rcas, sups: supsDe(esc) }).then(function (j) { return L.acumularConsulta(j, "f"); });
   var mapa = L.somarFornecedores(esc, fs);
   if (!fora.length) return Promise.resolve(mapa);
-  return L.consultar({ tipo: "fornecedores", rcas: fora }).then(function (j) {
+  return L.consultar({ tipo: "fornecedores", rcas: fora, sups: supsDe(esc) }).then(function (j) {
     L.acumularConsulta(j, "f").forEach(function (b, f) { var a = mapa.get(f); if (a) L.subtrairValores(a, b); });
     return mapa;
   });
@@ -67,7 +69,7 @@ function fornecedoresDe(esc, ind) {
 function produtosDe(forn, esc) {
   var rcas = esc.tipo === "total" && !(esc.fora && esc.fora.length) ? null : esc.rcas;
   if (rcas && !rcas.length) return Promise.resolve([]);
-  return L.consultar({ tipo: "produtos", forn: forn, rcas: rcas }).then(function (j) {
+  return L.consultar({ tipo: "produtos", forn: forn, rcas: rcas, sups: supsDe(esc) }).then(function (j) {
     var mapa = L.acumularConsulta(j, "p"), info = new Map(), itens = [];
     (j.prod || []).forEach(function (p) { info.set(p[0], { nome: p[1], emb: p[2], un: p[3], obs2: p[4], exc: p[5], foto: !!p[6] }); });
     mapa.forEach(function (a, p) { if (temDado(a)) itens.push({ p: p, a: a, total: totalAno(a, "fat"), info: info.get(p) || {}, forn: forn }); });
@@ -134,27 +136,33 @@ function filhosDe(esc) {
   } else if (esc.tipo === "sup") {
     var ss = L.estado.filtros.sup || [];
     if (ss.length > 1) ss.forEach(function (c) { out.push({ esc: L.escopoSup(c), tipo: "sup", sup: L.SUP.get(c) }); });
-    else rcasOrdenados(esc.rcas).forEach(function (u) { out.push({ esc: L.escopoRca(u), tipo: "rca", u: u }); });
+    else rcasOrdenados(esc.rcas, esc.sups).forEach(function (u) { out.push({ esc: L.escopoRca(u, esc.sups), tipo: "rca", u: u }); });
   } else if (esc.tipo === "rcas") {
-    rcasOrdenados(esc.rcas).forEach(function (u) { out.push({ esc: L.escopoRca(u), tipo: "rca", u: u }); });
+    rcasOrdenados(esc.rcas, esc.sups).forEach(function (u) { out.push({ esc: L.escopoRca(u, esc.sups), tipo: "rca", u: u }); });
   }
   return out;
 }
-function rcasOrdenados(rcas) {
+/* RCAs do maior para o menor sell out do ano, só nos meses em que venderam por estes supervisores */
+function rcasOrdenados(rcas, sups) {
   var tot = new Map();
-  rcas.forEach(function (u) { tot.set(u, totalAno(L.somarEscopo(L.escopoRca(u)), "fat")); });
+  rcas.forEach(function (u) { tot.set(u, totalAno(L.somarEscopo(L.escopoRca(u, sups)), "fat")); });
   return rcas.slice().sort(function (a, b) { return tot.get(b) - tot.get(a) || a - b; });
 }
+/* "RCA 123 · Central Sul": o supervisor em que ele aparece aqui e, se hoje for outro, o de hoje */
+function rotuloRca(u, sup) {
+  var r = L.RCA.get(u) || {}, hoje = r.sup;
+  var t = "RCA " + u + " · " + L.nomeSup(sup != null ? sup : hoje);
+  if (sup != null && hoje !== sup) t += r.termino ? "" : " · hoje em " + L.nomeSup(hoje);
+  return t + (r.termino ? " · desligado em " + L.fData(r.termino) : "") + (r.ajuste ? " · contado em Televendas" : "");
+}
+function supUnico(sups) { return sups && sups.size === 1 ? sups.values().next().value : null; }
 function rotFilhos(esc) {
   return esc.tipo === "total" || esc.tipo === "equipes" ? "equipe" : esc.tipo === "equipe" ? "supervisor"
     : esc.tipo === "sup" && (L.estado.filtros.sup || []).length > 1 ? "supervisor" : esc.tipo === "rca" ? "fornecedor" : "RCA";
 }
 function subDoFilho(f) {
   if (f.tipo === "sup") { var n = f.esc.rcas.length; return f.sup.nome + " · " + n + " RCA" + (n === 1 ? "" : "s"); }
-  if (f.tipo === "rca") {
-    var r = L.RCA.get(f.u) || {};
-    return "RCA " + f.u + " · " + L.nomeSup(r.sup) + (r.termino ? " · desligado em " + L.fData(r.termino) : "") + (r.ajuste ? " · contado em Televendas" : "");
-  }
+  if (f.tipo === "rca") return rotuloRca(f.u, supUnico(f.esc.sups));
   if (f.tipo === "semtele") return "a equipe sem Televendas, como na planilha";
   if (f.tipo === "equipe") return f.eq.cod === "OUTROS" ? "operação interna, Televendas sem equipe e supervisores inativos" : "";
   return "";
@@ -173,7 +181,7 @@ function abrirMesDe(esc, ind, mo) {
     // RCA: o mês pelos fornecedores dele (consulta na hora)
     return L.abrirMes({ ind: ind, anos: anos(), mo: mo, escopoNome: esc.nome, filhosRot: "fornecedor", filhosRotSing: "Fornecedor",
       filhos: function () {
-        return L.consultar({ tipo: "fornecedores", rcas: esc.rcas }).then(function (j) {
+        return L.consultar({ tipo: "fornecedores", rcas: esc.rcas, sups: supsDe(esc) }).then(function (j) {
           var m = L.acumularConsulta(j, "f"), fs = fornSel(), out = [];
           m.forEach(function (a, f) { if (fs && !fs.has(f)) return; out.push({ nome: L.titulo(L.nomeForn(f)), sub: "Fornecedor " + f, acc: a,
             aoAbrir: function () { L.setFiltro("forn", [f]); L.irPara("prod"); } }); });
@@ -317,7 +325,7 @@ function descricaoEscopo(esc) {
   if (esc.tipo === "equipe") { var n = esc.sups ? esc.sups.size : 0; return "Equipe " + esc.eq + " · " + n + " supervisores"; }
   if (esc.tipo === "total") return "ES + RJ + BA + outros";
   if (esc.tipo === "sup") return (L.estado.filtros.sup || []).length > 1 ? "supervisores escolhidos no filtro" : (L.SUP.get(+esc.grupo.slice(2)) || {}).nome + " · " + esc.rcas.length + " RCAs";
-  if (esc.tipo === "rca") { var r = L.RCA.get(esc.rcaUnico) || {}; return "RCA " + esc.rcaUnico + " · " + L.nomeSup(r.sup); }
+  if (esc.tipo === "rca") return rotuloRca(esc.rcaUnico, supUnico(esc.sups));
   return "";
 }
 
@@ -337,28 +345,34 @@ L.registrarPagina({ id: "rca", grupo: "Abertura", menu: "Por RCA", titulo: "Por 
     var lista = L.h("div"); raiz.appendChild(lista);
     esperaEm(lista, "Somando os RCAs…");
     var fs = fornSel();
-    var prom = fs ? L.consultar({ tipo: "rcas", forns: Array.from(fs), rcas: esc.rcas }).then(function (j) { return L.acumularConsulta(j, "u"); })
+    var prom = fs ? L.consultar({ tipo: "rcas", forns: Array.from(fs), rcas: esc.rcas, sups: supsDe(esc) }).then(function (j) { return L.acumularConsulta(j, "slot"); })
                   : Promise.resolve(null);
     prom.then(function (mapaForn) {
-      var itens = esc.rcas.map(function (u) {
-        var a = mapaForn ? mapaForn.get(u) : L.somarEscopo(L.escopoRca(u));
-        return a && temDado(a) ? { u: u, a: a, total: totalAno(a, "fat"), r: L.RCA.get(u) || {} } : null;
-      }).filter(Boolean);
+      // um bloco por RCA em cada supervisor em que ele vendeu (o supervisor do pedido): quem mudou aparece nos dois
+      var itens = [];
+      esc.rcas.forEach(function (u) {
+        L.supsDoRca(u).forEach(function (sp) {
+          if (esc.sups && !esc.sups.has(sp)) return;
+          var a = mapaForn ? mapaForn.get(L.slot(u, sp)) : L.somarEscopo(L.escopoRca(u, new Set([sp])));
+          if (a && temDado(a)) itens.push({ u: u, s: sp, a: a, total: totalAno(a, "fat"), r: L.RCA.get(u) || {} });
+        });
+      });
       L.limpar(lista);
       if (!itens.length) { lista.appendChild(L.h("div", { class: "vazio", html: "<b>Sem venda</b>Nenhum RCA com venda nos anos escolhidos." })); return; }
       // agrupados por supervisor, na ordem da planilha; dentro, do que mais vendeu no ano
       var porSup = new Map();
-      itens.forEach(function (x) { var s = x.r.sup || 0; if (!porSup.has(s)) porSup.set(s, []); porSup.get(s).push(x); });
+      itens.forEach(function (x) { if (!porSup.has(x.s)) porSup.set(x.s, []); porSup.get(x.s).push(x); });
       var sups = Array.from(porSup.keys()).sort(function (a, b) { var A = L.SUP.get(a) || { ordem: 999 }, B = L.SUP.get(b) || { ordem: 999 }; return A.ordem - B.ordem || a - b; });
       sups.forEach(function (s) {
         var grupo = porSup.get(s).sort(function (a, b) { return b.total - a.total; });
         var sec = L.h("div", { class: "grupo-rca" }, L.secao(L.nomeSup(s) + " · " + grupo.length + " RCA" + (grupo.length === 1 ? "" : "s")));
         grupo.forEach(function (x) {
-          var b = L.bloco({ titulo: L.nomeRca(x.u), sub: "RCA " + x.u + (x.r.termino ? " · desligado em " + L.fData(x.r.termino) : "") + (x.r.bloqueio === "S" ? " · bloqueado" : ""),
+          var b = L.bloco({ titulo: L.nomeRca(x.u), sub: "RCA " + x.u + (x.r.sup !== x.s && !x.r.termino ? " · hoje em " + L.nomeSup(x.r.sup) : "") +
+                (x.r.termino ? " · desligado em " + L.fData(x.r.termino) : "") + (x.r.bloqueio === "S" ? " · bloqueado" : ""),
             acc: x.a, ind: ind, anos: an, compacto: true, mesAMes: L.estado.mesAMes,
             aviso: x.r.ajuste ? "No WinThor é de " + L.nomeSup(x.r.supW) + "; contado em Televendas como na planilha" : null,
             aoClicarTitulo: function () { L.setFiltro("rca", [x.u]); L.irPara("forn"); }, dicaTitulo: "Abrir os fornecedores deste RCA",
-            aoClicarMes: function (mo) { abrirMesDe(L.escopoRca(x.u), ind, mo); }, filhosRot: "fornecedor" });
+            aoClicarMes: function (mo) { abrirMesDe(L.escopoRca(x.u, new Set([x.s])), ind, mo); }, filhosRot: "fornecedor" });
           b.dataset.busca = L.norm(x.u + " " + (x.r.nome || ""));
           sec.appendChild(b); blocos.push({ titulo: L.nomeRca(x.u) + " (" + x.u + ")", el: b });
         });
@@ -476,7 +490,7 @@ L.registrarPagina({ id: "cresc", grupo: "Visão ampla", menu: "Crescimento", tit
       var lista = [];
       if (dimR === "eq") L.EQUIPES.forEach(function (e) { lista.push({ cod: e.id, nome: e.nome, sub: "", esc: L.escopoEquipe(e.cod), abrir: function () { L.estado.filtros = {}; L.setFiltro("eq", [e.id]); L.irPara(ind); } }); });
       else if (dimR === "sup") L.supsOrdenados().forEach(function (s) { if (!esc.sups || esc.sups.has(s.cod)) lista.push({ cod: s.cod, nome: s.rot, sub: s.nome, esc: L.escopoSup(s.cod), abrir: function () { delete L.estado.filtros.rca; L.setFiltro("sup", [s.cod]); L.irPara(ind); } }); });
-      else esc.rcas.forEach(function (u) { var r = L.RCA.get(u) || {}; lista.push({ cod: u, nome: L.nomeRca(u), sub: u + " · " + L.nomeSup(r.sup), esc: L.escopoRca(u), abrir: function () { L.setFiltro("rca", [u]); L.irPara(ind); } }); });
+      else esc.rcas.forEach(function (u) { lista.push({ cod: u, nome: L.nomeRca(u), sub: rotuloRca(u, supUnico(esc.sups)).replace(/^RCA /, ""), esc: L.escopoRca(u, esc.sups), abrir: function () { L.setFiltro("rca", [u]); L.irPara(ind); } }); });
       fontes = Promise.all(lista.map(function (x) { return accDe(x.esc, ind); })).then(function (accs) { lista.forEach(function (x, i) { x.acc = accs[i]; }); return lista; });
     }
     fontes.then(function (lista) {

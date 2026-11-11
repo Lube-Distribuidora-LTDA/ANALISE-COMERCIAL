@@ -53,7 +53,7 @@ WinThor (Oracle) ──AGENTE LUBE (SRV-IA, de minuto em minuto)──▶ DATA W
 | Indicador | Conta |
 |---|---|
 | **Sell out** | venda do Relatório 146 (pedido **faturado**, pela **data do pedido**, sem ST, fora bonificação e as condições 5, 6, 11, 12) **− devolução sem ST** (PCMOV ED: `QT × (PUNITCONT − ST)`, pela data do movimento). Por item: `QT × (PVENDA − ST)`, que soma exatamente a venda do pedido (8.464 pedidos de fev/2026, diferença zero) |
-| **Supervisor** | o **atual** do RCA (PCUSUARI), como a planilha. RCA 41 em Televendas (`analise_comercial.ajuste_rca`) |
+| **Supervisor** | o **do pedido** (PCPEDC.CODSUPERVISOR), como o Relatório 146 e a planilha, desde 2026-11-11; a devolução fica com o supervisor do último pedido do RCA até a data (o WinThor não guarda supervisor na devolução). O RCA que mudou de supervisor aparece nos dois. RCA 41 em Televendas (`analise_comercial.ajuste_rca`) |
 | **Mês** | **comercial**: semanas fechadas de sábado a sexta, 4-4-4-5-4-5-4-4-5-4-4-5 em 2025 e 2026 (`analise_comercial.calendario`) |
 | **Positivação** | a do **Relatório 146** (desde 2026-11-10): clientes distintos com **pedido digitado** (posição L, M, B, P, F ou C sem cancelamento; fora as condições 4, 8, 10, 13, 20, 98, 99), tabela `analise_comercial.pedido`, sem contar duas vezes o cliente de dois RCAs (`r_grupo`). Com fornecedor no filtro, os clientes dos itens faturados |
 | **Mix** | SKUs distintos vendidos |
@@ -70,7 +70,7 @@ nos outros anos (até ontem; as semanas começam todas no sábado, então o dia 
   Quase todos os supervisores ficam a menos de R$ 2 por mês. A sobra é pedido faturado ou cancelado depois do dia em
   que o gestor copiou o número.
 - **2025:** −1,9% a +1,2% no total. Vitória Norte (+5% a +10%) e Vitória Sul (−4% a −11%) até out/2025: um RCA mudou
-  de supervisor depois, e o sistema usa o supervisor atual (como a planilha faz no mês corrente).
+  de supervisor depois. Desde 2026-11-11 o sistema usa o supervisor do pedido; antes usava o atual.
 - **2024:** calendário **deduzido** (melhor encaixe com cortes na sexta), de −3,6% a +2,4%: a conferir com o comercial.
 - **Positivação, mix e margem:** positivação 2026 a menos de 0,5%; mix perto; margem ~0,5 a
   0,8 ponto acima da aba MARGEM (parada em jan/2025): a fonte da margem da planilha ainda não foi achada.

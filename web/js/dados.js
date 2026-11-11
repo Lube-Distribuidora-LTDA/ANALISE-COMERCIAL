@@ -154,6 +154,19 @@ L.rotuloPeriodo = function (k) {
 L.ateOntem = function () { var c = L.CALK.get(L.MES_ATUAL); return c ? new Date(Date.parse(c.inicio) + L.ORDEM_CORTE * 864e5).toISOString().slice(0, 10) : null; };
 
 function zeros(n, inteiro) { return inteiro ? new Int32Array(n) : new Float64Array(n); }
+/* RCA dentro de um supervisor (o supervisor do pedido, desde 2026-11-11): a chave do par */
+function slot(u, s) { return u * 1000 + s; }
+L.slot = slot;
+function supHoje(u) { var r = L.RCA.get(u); return r ? r.sup : 0; }
+function marcarSup(u, s) { var x = L.SUPS_RCA.get(u); if (!x) { x = new Set(); L.SUPS_RCA.set(u, x); } x.add(s); }
+/* os supervisores em que o RCA vendeu (algum mês) */
+L.supsDoRca = function (u) { return L.SUPS_RCA.get(u) || new Set([supHoje(u)]); };
+/* o RCA tem venda em algum destes supervisores? (sem conjunto = todos) */
+L.rcaEmSups = function (u, sups) {
+  if (!sups) return true;
+  var ok = false; L.supsDoRca(u).forEach(function (s) { if (sups.has(s)) ok = true; });
+  return ok;
+};
 function serieVazia() { return { v: zeros(nM), c: zeros(nM), q: zeros(nM), d: zeros(nM), t: zeros(nM), p: zeros(nM, 1), x: zeros(nM, 1) }; }
 function corteVazio() { return { v: zeros(nA), c: zeros(nA), q: zeros(nA), d: zeros(nA), p: zeros(nA), x: zeros(nA) }; }
 
@@ -175,14 +188,19 @@ function montar() {
   L.FORN = new Map();
   dim.forn.forEach(function (f) { L.FORN.set(f[0], f[1]); });
 
-  // por RCA
-  L.SR = new Map(); L.GR = new Map();
+  // por RCA × supervisor do pedido (L.SRS, chave slot); L.SR soma o RCA em todos os supervisores. O RCA que esteve
+  // em dois supervisores no mesmo mês soma positivação e mix dos dois (multi): a tela reconta no banco.
+  L.SR = new Map(); L.SRS = new Map(); L.SUPS_RCA = new Map(); L.GR = new Map();
   ["base_hist", "base_rec"].forEach(function (nome) {
-    var j = L.PAC[nome].j, r = j.rca, g = j.grupo, i, s, m;
+    var j = L.PAC[nome].j, r = j.rca, g = j.grupo, i, s, a, m, u, sp, k;
     for (i = 0; i < r.m.length; i++) {
-      s = L.SR.get(r.u[i]); if (!s) { s = serieVazia(); L.SR.set(r.u[i], s); }
+      u = r.u[i]; sp = r.s ? r.s[i] : supHoje(u); k = slot(u, sp);
+      s = L.SRS.get(k); if (!s) { s = serieVazia(); L.SRS.set(k, s); marcarSup(u, sp); }
+      a = L.SR.get(u); if (!a) { a = serieVazia(); a.n = zeros(nM, 1); L.SR.set(u, a); }
       m = L.im(r.m[i]); if (m < 0 || m >= nM) continue;
       s.v[m] = r.v[i]; s.c[m] = r.c[i]; s.q[m] = r.q[i]; s.d[m] = r.d[i]; s.p[m] = r.p[i]; s.x[m] = r.x[i]; s.t[m] = r.t[i];
+      a.v[m] += r.v[i]; a.c[m] += r.c[i]; a.q[m] += r.q[i]; a.d[m] += r.d[i]; a.p[m] += r.p[i]; a.x[m] += r.x[i]; a.t[m] += r.t[i];
+      if (++a.n[m] > 1) a.multi = true;
     }
     for (i = 0; i < g.m.length; i++) {
       s = L.GR.get(g.g[i]); if (!s) { s = { p: zeros(nM, 1), x: zeros(nM, 1) }; L.GR.set(g.g[i], s); }
@@ -191,12 +209,15 @@ function montar() {
     }
   });
   // o trecho do mês atual (uma linha por ano)
-  L.CR = new Map(); L.CG = new Map();
-  var cb = dim.corte.base, i2, s2, y;
+  L.CR = new Map(); L.CRS = new Map(); L.CG = new Map();
+  var cb = dim.corte.base, i2, s2, a2, y, u2, k2;
   for (i2 = 0; i2 < cb.rca.m.length; i2++) {
-    s2 = L.CR.get(cb.rca.u[i2]); if (!s2) { s2 = corteVazio(); L.CR.set(cb.rca.u[i2], s2); }
+    u2 = cb.rca.u[i2]; k2 = slot(u2, cb.rca.s ? cb.rca.s[i2] : supHoje(u2));
+    s2 = L.CRS.get(k2); if (!s2) { s2 = corteVazio(); L.CRS.set(k2, s2); }
+    a2 = L.CR.get(u2); if (!a2) { a2 = corteVazio(); L.CR.set(u2, a2); }
     y = L.ya(Math.floor(cb.rca.m[i2] / 100)); if (y < 0 || y >= nA) continue;
     s2.v[y] = cb.rca.v[i2]; s2.c[y] = cb.rca.c[i2]; s2.q[y] = cb.rca.q[i2]; s2.d[y] = cb.rca.d[i2]; s2.p[y] = cb.rca.p[i2]; s2.x[y] = cb.rca.x[i2];
+    a2.v[y] += cb.rca.v[i2]; a2.c[y] += cb.rca.c[i2]; a2.q[y] += cb.rca.q[i2]; a2.d[y] += cb.rca.d[i2]; a2.p[y] += cb.rca.p[i2]; a2.x[y] += cb.rca.x[i2];
   }
   for (i2 = 0; i2 < cb.grupo.m.length; i2++) {
     s2 = L.CG.get(cb.grupo.g[i2]); if (!s2) { s2 = { p: zeros(nA), x: zeros(nA) }; L.CG.set(cb.grupo.g[i2], s2); }
@@ -244,10 +265,10 @@ L.equipeDoSup = function (cod) { var s = L.SUP.get(cod); return s ? s.eq : "OUTR
 function supsOrdenados() { return Array.from(L.SUP.values()).sort(function (a, b) { return a.ordem - b.ordem || a.cod - b.cod; }); }
 L.supsOrdenados = supsOrdenados;
 function definirDimensoes() {
-  var comVenda = new Set();
-  L.SR.forEach(function (s, u) { for (var i = 0; i < nM; i++) if (s.v[i] || s.d[i]) { comVenda.add(u); break; } });
-  var supComVenda = new Set();
-  comVenda.forEach(function (u) { var r = L.RCA.get(u); supComVenda.add(r ? r.sup : 0); });
+  var comVenda = new Set(), supComVenda = new Set();
+  L.SRS.forEach(function (s, k) {
+    for (var i = 0; i < nM; i++) if (s.v[i] || s.d[i]) { comVenda.add(Math.floor(k / 1000)); supComVenda.add(k % 1000); break; }
+  });
   L.DIM = {
     eq: { rot: "Equipe", nome: function (id) { var e = L.equipeDeId(id); return e ? e.nome : String(id); },
           itens: function () { return L.EQUIPES.map(function (e) { return { id: e.id, t: e.nome, n: L.norm(e.nome + " " + e.cod), s: e.cod }; }); } },
@@ -260,7 +281,7 @@ function definirDimensoes() {
     rca: { rot: "RCA", nome: function (id) { return id + " · " + L.nomeRca(id); },
            itens: function () {
              var sups = L.supsFiltro();
-             return Array.from(comVenda).filter(function (u) { var r = L.RCA.get(u); return !sups || sups.has(r ? r.sup : 0); })
+             return Array.from(comVenda).filter(function (u) { return L.rcaEmSups(u, sups); })
                .sort(function (a, b) { return L.nomeRca(a).localeCompare(L.nomeRca(b), "pt-BR"); })
                .map(function (u) { var r = L.RCA.get(u) || {}; return { id: u, t: u + " · " + L.nomeRca(u) + (r.termino ? " (desligado)" : ""), n: L.norm(u + " " + (r.nome || "")), s: L.nomeSup(r.sup) }; });
            } },
@@ -288,15 +309,16 @@ L.supsFiltro = function () {
 };
 /* RCAs tirados da comparação (filtro RCA: todos marcados, desmarcar tira) — Set ou null */
 L.rcaFora = function () { var f = L.estado.filtros.rcaFora || []; return f.length ? new Set(f) : null; };
-/* RCAs de um conjunto de supervisores (ou de todos), sem os tirados da comparação */
+/* RCAs que venderam por um conjunto de supervisores (ou por todos), sem os tirados da comparação.
+   Pelo supervisor do pedido: o RCA que mudou de supervisor entra nos dois (cada um com os meses dele). */
 L.rcasDe = function (sups) {
   var out = [], fora = L.rcaFora();
-  L.SR.forEach(function (s, u) { var r = L.RCA.get(u); var sup = r ? r.sup : 0; if ((!sups || sups.has(sup)) && !(fora && fora.has(u))) out.push(u); });
+  L.SR.forEach(function (s, u) { if (L.rcaEmSups(u, sups) && !(fora && fora.has(u))) out.push(u); });
   return out;
 };
-/* os tirados que estavam dentro de um conjunto de supervisores (ou de todos) */
+/* os tirados que venderam por um conjunto de supervisores (ou por todos) */
 L.foraDe = function (sups) {
-  return (L.estado.filtros.rcaFora || []).filter(function (u) { var r = L.RCA.get(u); return !sups || sups.has(r ? r.sup : 0); });
+  return (L.estado.filtros.rcaFora || []).filter(function (u) { return L.rcaEmSups(u, sups); });
 };
 /* Escopo = o que um bloco soma. tipo: total | equipe | semtele | sup | rca | rcas
    grupo: a chave do r_grupo que dá positivação/mix sem contar duas vezes (ou null = soma, aproximada)
@@ -304,8 +326,9 @@ L.foraDe = function (sups) {
 L.escopoDaTela = function () {
   var f = L.estado.filtros, eqs = L.equipesFiltro(), sups = L.supsFiltro();
   if ((f.rca || []).length) {
+    // só o RCA: dentro dos supervisores do filtro (equipe ou supervisor), ou em todos
     var rcas = f.rca.slice();
-    return { tipo: rcas.length === 1 ? "rca" : "rcas", rcas: rcas, sups: new Set(rcas.map(function (u) { var r = L.RCA.get(u); return r ? r.sup : 0; })),
+    return { tipo: rcas.length === 1 ? "rca" : "rcas", rcas: rcas, sups: sups, fora: [],
              grupo: null, rcaUnico: rcas.length === 1 ? rcas[0] : null, porRca: true,
              nome: rcas.length === 1 ? L.nomeRca(rcas[0]) : rcas.length + " RCAs" };
   }
@@ -332,9 +355,9 @@ L.escopoEquipe = function (cod, semTele) {
   return { tipo: semTele ? "semtele" : "equipe", eq: cod, rcas: L.rcasDe(sups), sups: sups, fora: L.foraDe(sups), grupo: (semTele ? "S:" : "E:") + cod,
            nome: semTele ? "S/TELEVENDAS" : L.equipeDeCod(cod).nome };
 };
-L.escopoRca = function (u) {
-  var r = L.RCA.get(u);
-  return { tipo: "rca", rcas: [u], sups: new Set([r ? r.sup : 0]), fora: [], grupo: null, rcaUnico: u, porRca: true, nome: L.nomeRca(u) };
+/* um RCA: em todos os supervisores (sups nulo) ou só nos meses em que vendeu por estes supervisores */
+L.escopoRca = function (u, sups) {
+  return { tipo: "rca", rcas: [u], sups: sups || null, fora: [], grupo: null, rcaUnico: u, porRca: true, nome: L.nomeRca(u) };
 };
 
 /* ------------------------------ somar um escopo ------------------------------ */
@@ -347,10 +370,15 @@ function acumulador() {
 L.acumulador = acumulador;
 function somarArr(a, b) { for (var i = 0; i < a.length; i++) a[i] += b[i]; }
 L.somarEscopo = function (esc) {
-  var a = acumulador();
+  var a = acumulador(), pp = zeros(nM), xx = zeros(nM), cp = zeros(nA), cx = zeros(nA), n = 0, multi = false;
+  function somar(s, c) {
+    if (s) { somarArr(a.v, s.v); somarArr(a.c, s.c); somarArr(a.q, s.q); somarArr(a.d, s.d); somarArr(a.t, s.t); somarArr(pp, s.p); somarArr(xx, s.x); n++; if (s.multi) multi = true; }
+    if (c) { somarArr(a.cv, c.v); somarArr(a.cc, c.c); somarArr(a.cq, c.q); somarArr(a.cd, c.d); somarArr(cp, c.p); somarArr(cx, c.x); }
+  }
+  // sem supervisores, o RCA inteiro; com supervisores, só os meses em que ele vendeu por eles
   esc.rcas.forEach(function (u) {
-    var s = L.SR.get(u); if (s) { somarArr(a.v, s.v); somarArr(a.c, s.c); somarArr(a.q, s.q); somarArr(a.d, s.d); somarArr(a.t, s.t); }
-    var c = L.CR.get(u); if (c) { somarArr(a.cv, c.v); somarArr(a.cc, c.c); somarArr(a.cq, c.q); somarArr(a.cd, c.d); }
+    if (!esc.sups) somar(L.SR.get(u), L.CR.get(u));
+    else L.supsDoRca(u).forEach(function (sp) { if (esc.sups.has(sp)) somar(L.SRS.get(slot(u, sp)), L.CRS.get(slot(u, sp))); });
   });
   if (esc.grupo || (esc.grupos && esc.grupos.length)) {
     (esc.grupo ? [esc.grupo] : esc.grupos).forEach(function (g) {
@@ -360,11 +388,8 @@ L.somarEscopo = function (esc) {
     // com RCA tirado, o grupo ainda conta os clientes dele: aproximado até a recontagem (paginas.js, accDe)
     a.aprox = !esc.grupo || !!(esc.fora && esc.fora.length);
   } else {
-    esc.rcas.forEach(function (u) {
-      var s = L.SR.get(u); if (s) { somarArr(a.p, s.p); somarArr(a.x, s.x); }
-      var c = L.CR.get(u); if (c) { somarArr(a.cp, c.p); somarArr(a.cx, c.x); }
-    });
-    a.aprox = esc.rcas.length > 1;
+    a.p = pp; a.x = xx; a.cp = cp; a.cx = cx;
+    a.aprox = n > 1 || multi;
   }
   return a;
 };
@@ -413,15 +438,17 @@ L.acumularConsulta = function (j, campoCod) {
   var out = new Map();
   if (!j || !j.m) return out;
   for (var i = 0; i < j.m.length; i++) {
-    var cod = j[campoCod][i], a = out.get(cod);
-    if (!a) { a = acumulador(); a.temMeta = false; out.set(cod, a); }
+    // "slot": um acumulador por RCA × supervisor (a consulta de RCAs traz o s); com "u", o RCA soma os supervisores
+    var cod = campoCod === "slot" ? slot(j.u[i], j.s[i]) : j[campoCod][i], a = out.get(cod);
+    if (!a) { a = acumulador(); a.temMeta = false; a.n = zeros(nM, 1); out.set(cod, a); }
     var m = L.im(j.m[i]); if (m < 0 || m >= nM) continue;
-    a.v[m] = j.v[i]; a.c[m] = j.c[i]; a.q[m] = j.q[i]; a.d[m] = j.d[i];
-    a.p[m] = j.n ? j.n[i] : j.p[i]; a.x[m] = j.x ? j.x[i] : (j.v[i] > 0 ? 1 : 0);
+    a.v[m] += j.v[i]; a.c[m] += j.c[i]; a.q[m] += j.q[i]; a.d[m] += j.d[i];
+    a.p[m] += j.n ? j.n[i] : j.p[i]; a.x[m] += j.x ? j.x[i] : (j.v[i] > 0 ? 1 : 0);
+    if (++a.n[m] > 1) a.aprox = true;
     if (j.m[i] % 100 === L.MOA) {
       var y = L.ya(Math.floor(j.m[i] / 100));
-      a.cv[y] = j.vc[i]; a.cc[y] = j.cc[i]; a.cq[y] = j.qc[i]; a.cd[y] = j.dc[i];
-      a.cp[y] = j.nc ? j.nc[i] : j.pc[i]; a.cx[y] = j.xc ? j.xc[i] : (j.vc[i] > 0 ? 1 : 0);
+      a.cv[y] += j.vc[i]; a.cc[y] += j.cc[i]; a.cq[y] += j.qc[i]; a.cd[y] += j.dc[i];
+      a.cp[y] += j.nc ? j.nc[i] : j.pc[i]; a.cx[y] += j.xc ? j.xc[i] : (j.vc[i] > 0 ? 1 : 0);
     }
   }
   return out;

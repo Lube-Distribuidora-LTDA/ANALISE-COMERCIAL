@@ -8,7 +8,7 @@
 --   SELL OUT    = venda do Relatório 146 (pedido FATURADO, pela data do pedido, sem ST, fora bonificação e
 --                 as condições 5, 6, 11 e 12) − devolução sem ST (PCMOV ED: QT × (PUNITCONT − ST), pela
 --                 data do movimento). Por item: QT × (PVENDA − ST), que soma exatamente a venda do pedido.
---   SUPERVISOR  = o ATUAL do RCA (PCUSUARI), como a planilha. O RCA 41 conta em Televendas
+--   SUPERVISOR  = o DO PEDIDO desde 2026-11-11 (db/05 e db/06; antes o ATUAL do RCA). O RCA 41 conta em Televendas
 --                 (ajuste_rca), decisão do Júlio em 2026-11-04.
 --   MÊS         = mês COMERCIAL, de semanas fechadas sábado → sexta (tabela calendario). Fev/2026 bateu
 --                 ao real e jan a set/2026 ficaram entre 0,00% e 0,06% da planilha.

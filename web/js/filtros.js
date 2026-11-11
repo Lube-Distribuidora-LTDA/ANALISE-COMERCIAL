@@ -34,7 +34,7 @@ function limparForaDaEquipe() {
 function setLista(chave, a) { if (a.length) L.estado.filtros[chave] = a; else delete L.estado.filtros[chave]; }
 function limparRcaForaDoSup() {
   var sups = L.supsFiltro(); if (!sups) return;
-  function doSup(u) { var r = L.RCA.get(u); return sups.has(r ? r.sup : 0); }
+  function doSup(u) { return L.rcaEmSups(u, sups); }   // vendeu por algum destes supervisores (o do pedido)
   setLista("rca", (L.estado.filtros.rca || []).filter(doSup));
   setLista("rcaFora", (L.estado.filtros.rcaFora || []).filter(doSup));
 }
